@@ -1,3 +1,14 @@
+# Phase 6: Rust Game Rendering with egui
+
+Implement game rendering in Rust using egui + egui_glow.
+
+---
+
+## File: `rust/src/lib.rs` (complete rewrite)
+
+Replace with egui-based rendering:
+
+```rust
 mod jni;
 
 use std::sync::Arc;
@@ -338,10 +349,45 @@ pub extern "C" fn game_destroy(handle: GameHandle) {
     if handle.is_null() {
         return;
     }
-    let mut state = unsafe { Box::from_raw(handle) };
+    let state = unsafe { Box::from_raw(handle) };
 
-    // egui_painter cleanup
+    // egui_painter cleanup happens on drop
     state.egui_painter.destroy();
 
     log::info!("game_destroy: cleaned up");
 }
+```
+
+---
+
+## Summary
+
+This phase uses **egui** for all rendering:
+
+1. **egui::Context** - Manages UI state and layout
+2. **egui_glow::Painter** - Renders egui to OpenGL ES
+3. **egui shapes** - Uses `painter.rect()` and `painter.circle()` to draw
+
+**What's rendered:**
+- Dark gray background
+- Rounded rectangle (box) with white border
+- Circle inside the box
+- Colors change based on direction/touch
+
+**Movement:**
+- Arrow buttons move the shape at 300 pixels/second
+- Shape stays within screen bounds
+
+---
+
+## Checklist
+
+- [x] Initialize glow context from Android's EGL
+- [x] Implement game state struct (player position, direction)
+- [ ] Render basic shapes (box + circle) using egui
+- [ ] Add movement based on direction input
+- [ ] Verify rendering appears in Flutter app
+
+---
+
+Awaiting your review and approval to implement this code.
