@@ -21,6 +21,9 @@ egui_glow = { version = "0.29", default-features = false }
 log = "0.4"
 android_logger = "0.14"
 
+# JNI bindings
+jni = { version = "0.21", default-features = false }
+
 [profile.release]
 lto = true
 opt-level = "z"

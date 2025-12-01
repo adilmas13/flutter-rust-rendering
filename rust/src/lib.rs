@@ -1,7 +1,14 @@
-use std::ffi::c_void;
+mod jni;
+
 use std::sync::Arc;
 
 use glow::HasContext;
+
+// Link to EGL for eglGetProcAddress
+#[link(name = "EGL")]
+extern "C" {
+    fn eglGetProcAddress(procname: *const i8) -> *const std::ffi::c_void;
+}
 
 /// Direction enum for player movement
 #[derive(Default, Clone, Copy, Debug)]
@@ -69,17 +76,10 @@ pub struct GameState {
 /// Opaque handle for FFI
 pub type GameHandle = *mut GameState;
 
-/// Type for GL proc address function
-pub type GlGetProcAddress = extern "C" fn(*const i8) -> *const c_void;
-
-/// Initialize the game engine with an external GL context
+/// Initialize the game engine
 /// Called from GLSurfaceView.onSurfaceCreated()
 #[no_mangle]
-pub extern "C" fn game_init(
-    get_proc_addr: GlGetProcAddress,
-    width: u32,
-    height: u32,
-) -> GameHandle {
+pub extern "C" fn game_init(width: u32, height: u32) -> GameHandle {
     // Initialize Android logging
     #[cfg(target_os = "android")]
     android_logger::init_once(
@@ -90,11 +90,11 @@ pub extern "C" fn game_init(
 
     log::info!("game_init: {}x{}", width, height);
 
-    // Create glow context from Android's EGL proc address
+    // Create glow context using eglGetProcAddress
     let gl = unsafe {
         glow::Context::from_loader_function(|s| {
             let c_str = std::ffi::CString::new(s).unwrap();
-            get_proc_addr(c_str.as_ptr() as *const i8)
+            eglGetProcAddress(c_str.as_ptr() as *const i8)
         })
     };
     let gl = Arc::new(gl);
@@ -175,15 +175,6 @@ pub extern "C" fn game_render(handle: GameHandle) {
         return;
     }
     let state = unsafe { &mut *handle };
-
-    unsafe {
-        // Clear with dark background
-        state.gl.clear_color(0.1, 0.1, 0.15, 1.0);
-        state.gl.clear(glow::COLOR_BUFFER_BIT);
-    }
-
-    // For Phase 4, we'll use simple color-based rendering
-    // In Phase 6/7, we'll add proper shape rendering with egui_glow
 
     // Change clear color based on player state for visual feedback
     let (r, g, b) = if state.is_player_touched {
