@@ -1,0 +1,27 @@
+[package]
+name = "game_engine"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "game_engine"
+crate-type = ["cdylib"]
+
+[dependencies]
+# OpenGL bindings
+glow = "0.14"
+
+# egui core (no winit dependency)
+egui = { version = "0.29", default-features = false }
+
+# egui OpenGL renderer
+egui_glow = { version = "0.29", default-features = false }
+
+# Logging
+log = "0.4"
+android_logger = "0.14"
+
+[profile.release]
+lto = true
+opt-level = "z"
+strip = true

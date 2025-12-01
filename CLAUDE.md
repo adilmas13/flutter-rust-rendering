@@ -36,8 +36,8 @@ A Flutter game demonstrating Dart/Rust interop through native platform layers. T
                          │ FFI (C ABI)
 ┌────────────────────────▼────────────────────────────────┐
 │                      Rust                               │
-│  - Notan: Cross-platform graphics/game framework        │
-│  - egui: Immediate-mode UI library                      │
+│  - glow: OpenGL bindings (uses Android's GL context)    │
+│  - egui + egui_glow: Immediate-mode UI rendering        │
 │  - Game logic and rendering                             │
 └─────────────────────────────────────────────────────────┘
 ```
@@ -60,10 +60,11 @@ A Flutter game demonstrating Dart/Rust interop through native platform layers. T
 - Event forwarding from Flutter to Rust
 
 **Rust (`rust/` - to be created)**
-- Notan for windowing/graphics abstraction (OpenGL ES backend for mobile)
-- egui for in-game UI elements
+- glow for OpenGL bindings (works with external GL context from Android)
+- egui + egui_glow for immediate-mode UI rendering
 - Game state and logic
 - Exposes C-compatible FFI for native layers
+- Receives both direction pad and touch events
 
 ## Build Commands
 
@@ -84,8 +85,9 @@ cargo ndk -t arm64-v8a build --release
 
 ## Key Dependencies
 
-- **Notan** (Rust): Portable multimedia layer - graphics, input, windowing
-- **egui** (Rust): Immediate-mode GUI, integrates with Notan via `notan_egui`
+- **glow** (Rust): OpenGL bindings - works with external GL context
+- **egui** (Rust): Immediate-mode GUI library
+- **egui_glow** (Rust): egui OpenGL renderer using glow
 - **flutter_lints**: Dart static analysis
 
 ## FFI Considerations

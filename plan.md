@@ -40,15 +40,15 @@ Pass direction events from Flutter to Android native layer.
 
 ---
 
-## Phase 4: Rust Library Setup
+## Phase 4: Rust Library Setup ✅
 
-Create Rust library with C FFI interface.
+Create Rust library with C FFI interface using glow + egui_glow.
 
-- [ ] Initialize Cargo project in `rust/` directory
-- [ ] Add Notan and egui dependencies
-- [ ] Create C-compatible FFI functions (init, update, render, handle_input)
-- [ ] Build for aarch64-linux-android target
-- [ ] Verify .so file is generated correctly
+- [x] Initialize Cargo project in `rust/` directory
+- [x] Add glow, egui, egui_glow dependencies
+- [x] Create C-compatible FFI functions (init, resize, update, render, set_direction, touch, destroy)
+- [ ] Build for aarch64-linux-android target (requires cargo-ndk + NDK)
+- [ ] Verify .so file is generated correctly (requires build)
 
 ---
 
@@ -64,13 +64,13 @@ Connect Android native layer to Rust library.
 
 ---
 
-## Phase 6: Rust Game Engine with Notan
+## Phase 6: Rust Game Rendering
 
-Implement basic game rendering in Rust.
+Implement game rendering in Rust using glow + egui_glow.
 
-- [ ] Initialize Notan with external GL context (no window creation)
-- [ ] Implement game state struct
-- [ ] Render basic shapes responding to input
+- [ ] Initialize glow context from Android's EGL
+- [ ] Implement game state struct (player position, direction)
+- [ ] Render basic shapes (ball) responding to input
 - [ ] Add movement based on direction input
 - [ ] Verify rendering appears in Flutter app
 
@@ -78,12 +78,12 @@ Implement basic game rendering in Rust.
 
 ## Phase 7: egui Integration
 
-Add immediate-mode UI via egui in Rust.
+Add immediate-mode UI via egui_glow in Rust.
 
-- [ ] Integrate egui with Notan using notan_egui
+- [ ] Set up egui_glow Painter with OpenGL ES 2.0
 - [ ] Create simple debug panel showing game state
 - [ ] Add in-game UI elements (score, status)
-- [ ] Handle egui input if needed
+- [ ] Handle touch input for egui interactions
 
 ---
 
@@ -114,6 +114,6 @@ Final improvements and cleanup.
 
 ## Current Status
 
-**Active Phase**: Phase 3 completed
+**Active Phase**: Phase 4 completed (code written, build pending)
 
-**Next Step**: Awaiting approval to begin Phase 4
+**Next Step**: Build Rust library with `cd rust && ./build_android.sh`, then proceed to Phase 5
