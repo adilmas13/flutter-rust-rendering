@@ -47,8 +47,8 @@ Create Rust library with C FFI interface using glow + egui_glow.
 - [x] Initialize Cargo project in `rust/` directory
 - [x] Add glow, egui, egui_glow dependencies
 - [x] Create C-compatible FFI functions (init, resize, update, render, set_direction, touch, destroy)
-- [ ] Build for aarch64-linux-android target (requires cargo-ndk + NDK)
-- [ ] Verify .so file is generated correctly (requires build)
+- [x] Build for aarch64-linux-android target
+- [x] Verify .so file is generated correctly
 
 ---
 
@@ -114,6 +114,6 @@ Final improvements and cleanup.
 
 ## Current Status
 
-**Active Phase**: Phase 4 completed (code written, build pending)
+**Active Phase**: Phase 4 completed
 
-**Next Step**: Build Rust library with `cd rust && ./build_android.sh`, then proceed to Phase 5
+**Next Step**: Awaiting approval to begin Phase 5 (Android-Rust JNI Bridge)
