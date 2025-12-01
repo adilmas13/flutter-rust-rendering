@@ -25,7 +25,7 @@ Set up Android native rendering surface without Rust.
 - [x] Implement GLRenderer with basic clear color
 - [x] Register PlatformView factory in Flutter plugin
 - [x] Connect Flutter PlatformView to native GLSurfaceView
-- [x] Verify GL context is working (changing background color)
+- [x] Verify GL context is working (gray background renders)
 
 ---
 
