@@ -10,7 +10,15 @@ class GameGLSurfaceFactory(
     private val messenger: BinaryMessenger
 ) : PlatformViewFactory(StandardMessageCodec.INSTANCE) {
 
+    private var currentView: GameGLPlatformView? = null
+
     override fun create(context: Context, viewId: Int, args: Any?): PlatformView {
-        return GameGLPlatformView(context, viewId, messenger)
+        val view = GameGLPlatformView(context, viewId, messenger)
+        currentView = view
+        return view
+    }
+
+    fun setDirection(direction: String) {
+        currentView?.setDirection(direction)
     }
 }

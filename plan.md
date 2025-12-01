@@ -29,14 +29,14 @@ Set up Android native rendering surface without Rust.
 
 ---
 
-## Phase 3: Flutter to Android Communication
+## Phase 3: Flutter to Android Communication ✅
 
 Pass direction events from Flutter to Android native layer.
 
-- [ ] Implement MethodChannel handler on Android side
-- [ ] Forward button events from Flutter to native view
-- [ ] Display received events in GL view (debug text or color change)
-- [ ] Verify bidirectional communication works
+- [x] Implement MethodChannel handler on Android side
+- [x] Forward button events from Flutter to native view
+- [x] Display received events in GL view (color change)
+- [x] Verify bidirectional communication works
 
 ---
 
@@ -114,6 +114,6 @@ Final improvements and cleanup.
 
 ## Current Status
 
-**Active Phase**: Phase 2 completed
+**Active Phase**: Phase 3 completed
 
-**Next Step**: Awaiting approval to begin Phase 3
+**Next Step**: Awaiting approval to begin Phase 4

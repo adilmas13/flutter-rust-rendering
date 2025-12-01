@@ -6,26 +6,26 @@ import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : FlutterActivity() {
     private val CHANNEL = "com.example.flutter_con/game"
+    private lateinit var gameFactory: GameGLSurfaceFactory
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
 
-        // Register the PlatformView factory
+        // Create and register the PlatformView factory
+        gameFactory = GameGLSurfaceFactory(flutterEngine.dartExecutor.binaryMessenger)
         flutterEngine
             .platformViewsController
             .registry
-            .registerViewFactory(
-                "game-gl-surface",
-                GameGLSurfaceFactory(flutterEngine.dartExecutor.binaryMessenger)
-            )
+            .registerViewFactory("game-gl-surface", gameFactory)
 
         // Set up MethodChannel for direction events
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL)
             .setMethodCallHandler { call, result ->
                 if (call.method == "sendDirection") {
                     val direction = call.argument<String>("direction")
-                    // Direction will be forwarded to GLSurfaceView in Phase 3
-                    println("Received direction: $direction")
+                    if (direction != null) {
+                        gameFactory.setDirection(direction)
+                    }
                     result.success(null)
                 } else {
                     result.notImplemented()
