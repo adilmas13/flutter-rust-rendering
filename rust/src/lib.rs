@@ -73,14 +73,6 @@ pub struct GameState {
 
     // Touch state
     is_player_touched: bool,
-    touch_pos: Option<Pos2>,
-
-    // Game stats
-    score: u32,
-    moves: u32,
-
-    // UI state
-    show_debug: bool,
 
     // Time tracking
     last_frame_time: std::time::Instant,
@@ -142,10 +134,6 @@ pub extern "C" fn game_init(width: u32, height: u32) -> GameHandle {
         player_size,
         current_direction: Direction::None,
         is_player_touched: false,
-        touch_pos: None,
-        score: 0,
-        moves: 0,
-        show_debug: true,
         last_frame_time: std::time::Instant::now(),
     });
 
@@ -202,11 +190,10 @@ pub extern "C" fn game_update(handle: GameHandle) {
         Direction::None => {}
     }
 
-    // Clamp to bounds (account for status bar at top ~40px)
+    // Clamp to bounds
     let half = state.player_size / 2.0;
-    let top_margin = 50.0;
     state.player_x = state.player_x.clamp(half, state.width as f32 - half);
-    state.player_y = state.player_y.clamp(half + top_margin, state.height as f32 - half);
+    state.player_y = state.player_y.clamp(half, state.height as f32 - half);
 }
 
 /// Render the game using egui
@@ -229,110 +216,50 @@ pub extern "C" fn game_render(handle: GameHandle) {
         Vec2::new(state.width as f32, state.height as f32),
     );
 
-    // Build egui input with touch
-    let mut raw_input = egui::RawInput {
+    // Run egui frame
+    let raw_input = egui::RawInput {
         screen_rect: Some(screen_rect),
         ..Default::default()
     };
 
-    // Add touch/pointer events for egui interaction
-    if let Some(pos) = state.touch_pos {
-        raw_input.events.push(egui::Event::PointerMoved(pos));
-    }
-
-    // Capture state for closure
-    let player_x = state.player_x;
-    let player_y = state.player_y;
-    let player_size = state.player_size;
-    let current_direction = state.current_direction;
-    let is_player_touched = state.is_player_touched;
-    let score = state.score;
-    let moves = state.moves;
-    let show_debug = state.show_debug;
-    let width = state.width;
-    let height = state.height;
-
-    let mut new_show_debug = show_debug;
-    let mut reset_requested = false;
-
     let full_output = state.egui_ctx.run(raw_input, |ctx| {
-        // === Status bar at top ===
-        egui::TopBottomPanel::top("status_bar")
-            .frame(egui::Frame::none().fill(Color32::from_rgb(30, 30, 40)).inner_margin(8.0))
-            .show(ctx, |ui| {
-                ui.horizontal(|ui| {
-                    ui.label(
-                        egui::RichText::new(format!("Score: {}", score))
-                            .size(22.0)
-                            .color(Color32::from_rgb(255, 220, 100)),
-                    );
-                    ui.add_space(20.0);
-                    ui.label(
-                        egui::RichText::new(format!("Moves: {}", moves))
-                            .size(18.0)
-                            .color(Color32::LIGHT_GRAY),
-                    );
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if ui.button(if show_debug { "Hide Debug" } else { "Show Debug" }).clicked() {
-                            new_show_debug = !show_debug;
-                        }
-                    });
-                });
-            });
-
-        // === Debug panel ===
-        if show_debug {
-            egui::Window::new("Debug")
-                .anchor(egui::Align2::RIGHT_BOTTOM, [-10.0, -10.0])
-                .resizable(false)
-                .collapsible(false)
-                .show(ctx, |ui| {
-                    ui.label(format!("Position: ({:.0}, {:.0})", player_x, player_y));
-                    ui.label(format!("Direction: {:?}", current_direction));
-                    ui.label(format!("Touched: {}", is_player_touched));
-                    ui.label(format!("Screen: {}x{}", width, height));
-                    ui.separator();
-                    if ui.button("Reset Position").clicked() {
-                        reset_requested = true;
-                    }
-                });
-        }
-
-        // === Draw player shape on background layer ===
+        // Get the painter for the whole screen
         let painter = ctx.layer_painter(egui::LayerId::background());
 
-        let fill_color = if is_player_touched {
-            Color32::from_rgb(255, 150, 50)
+        // Choose color based on state
+        let fill_color = if state.is_player_touched {
+            Color32::from_rgb(255, 150, 50) // Orange when touched
         } else {
-            match current_direction {
-                Direction::Up => Color32::from_rgb(50, 200, 50),
-                Direction::Down => Color32::from_rgb(200, 50, 50),
-                Direction::Left => Color32::from_rgb(50, 50, 200),
-                Direction::Right => Color32::from_rgb(200, 200, 50),
-                Direction::None => Color32::from_rgb(150, 150, 150),
+            match state.current_direction {
+                Direction::Up => Color32::from_rgb(50, 200, 50),    // Green
+                Direction::Down => Color32::from_rgb(200, 50, 50),  // Red
+                Direction::Left => Color32::from_rgb(50, 50, 200),  // Blue
+                Direction::Right => Color32::from_rgb(200, 200, 50), // Yellow
+                Direction::None => Color32::from_rgb(150, 150, 150), // Gray
             }
         };
 
         let stroke_color = Color32::WHITE;
-        let center = Pos2::new(player_x, player_y);
-        let half = player_size / 2.0;
+        let center = Pos2::new(state.player_x, state.player_y);
+        let half = state.player_size / 2.0;
 
-        // Draw rounded rectangle
-        let rect = Rect::from_center_size(center, Vec2::splat(player_size));
-        painter.rect(rect, Rounding::same(12.0), fill_color, Stroke::new(3.0, stroke_color));
+        // Draw a rounded rectangle (box) for the player
+        let rect = Rect::from_center_size(center, Vec2::splat(state.player_size));
+        painter.rect(
+            rect,
+            Rounding::same(8.0), // Rounded corners
+            fill_color,
+            Stroke::new(2.0, stroke_color),
+        );
 
-        // Draw circle inside
-        painter.circle(center, half * 0.5, fill_color.gamma_multiply(0.6), Stroke::new(2.0, stroke_color));
+        // Draw a circle inside the box
+        painter.circle(
+            center,
+            half * 0.6,
+            fill_color.gamma_multiply(0.7),
+            Stroke::new(1.5, stroke_color),
+        );
     });
-
-    // Apply UI state changes
-    state.show_debug = new_show_debug;
-    if reset_requested {
-        state.player_x = state.width as f32 / 2.0;
-        state.player_y = state.height as f32 / 2.0;
-        state.score = 0;
-        state.moves = 0;
-    }
 
     // Tessellate and paint
     let pixels_per_point = 1.0;
@@ -353,14 +280,7 @@ pub extern "C" fn game_set_direction(handle: GameHandle, direction: i32) {
         return;
     }
     let state = unsafe { &mut *handle };
-    let new_direction = Direction::from(direction);
-
-    // Count direction changes as moves
-    if new_direction != Direction::None && new_direction != state.current_direction {
-        state.moves += 1;
-    }
-
-    state.current_direction = new_direction;
+    state.current_direction = Direction::from(direction);
     log::debug!("game_set_direction: {:?}", state.current_direction);
 }
 
@@ -373,29 +293,28 @@ pub extern "C" fn game_touch(handle: GameHandle, x: f32, y: f32, action: i32) {
     let state = unsafe { &mut *handle };
     let touch_action = TouchAction::from(action);
 
-    let pos = Pos2::new(x, y);
+    // Check if touch is within player box
+    let half = state.player_size / 2.0;
+    let is_on_player = x >= state.player_x - half
+        && x <= state.player_x + half
+        && y >= state.player_y - half
+        && y <= state.player_y + half;
 
     match touch_action {
         TouchAction::Down => {
-            state.touch_pos = Some(pos);
-            // Check if touch is within player box
-            let half = state.player_size / 2.0;
-            let is_on_player = x >= state.player_x - half
-                && x <= state.player_x + half
-                && y >= state.player_y - half
-                && y <= state.player_y + half;
             if is_on_player {
                 state.is_player_touched = true;
-                state.score += 10;
-                log::info!("Player touched! Score: {}", state.score);
+                log::info!("Player touched at ({}, {})", x, y);
             }
         }
         TouchAction::Up => {
-            state.touch_pos = None;
+            if state.is_player_touched {
+                log::info!("Player released");
+            }
             state.is_player_touched = false;
         }
         TouchAction::Move => {
-            state.touch_pos = Some(pos);
+            // Could be used for drag behavior later
         }
     }
 }
