@@ -121,7 +121,7 @@ pub extern "C" fn game_init(width: u32, height: u32) -> GameHandle {
         }
     };
 
-    let player_size = 60.0;
+    let player_size = 200.0;
 
     let state = Box::new(GameState {
         gl,
@@ -149,6 +149,13 @@ pub extern "C" fn game_resize(handle: GameHandle, width: u32, height: u32) {
         return;
     }
     let state = unsafe { &mut *handle };
+
+    // Center player on first resize (when dimensions were 0)
+    if state.width == 0 || state.height == 0 {
+        state.player_x = width as f32 / 2.0;
+        state.player_y = height as f32 / 2.0;
+    }
+
     state.width = width;
     state.height = height;
 
