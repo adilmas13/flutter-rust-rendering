@@ -94,7 +94,7 @@ pub extern "C" fn game_init(
     let gl = unsafe {
         glow::Context::from_loader_function(|s| {
             let c_str = std::ffi::CString::new(s).unwrap();
-            get_proc_addr(c_str.as_ptr())
+            get_proc_addr(c_str.as_ptr() as *const i8)
         })
     };
     let gl = Arc::new(gl);
