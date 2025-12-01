@@ -1,4 +1,7 @@
+import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 
 void main() {
@@ -52,23 +55,22 @@ class _GameScreenState extends State<GameScreen> {
       ),
       body: Column(
         children: [
-          // Game view placeholder
+          // Game view - Android PlatformView with Hybrid Composition
           Expanded(
             child: Container(
               margin: const EdgeInsets.all(16),
+              clipBehavior: Clip.hardEdge,
               decoration: BoxDecoration(
-                color: Colors.black,
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(color: Colors.grey),
               ),
-              child: Center(
-                child: Text(
-                  'Game View Placeholder\nLast direction: $_lastDirection',
-                  style: const TextStyle(color: Colors.white),
-                  textAlign: TextAlign.center,
-                ),
-              ),
+              child: const GameGLView(),
             ),
+          ),
+          // Direction indicator
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Text('Last direction: $_lastDirection'),
           ),
           // Direction pad
           Padding(
@@ -77,6 +79,40 @@ class _GameScreenState extends State<GameScreen> {
           ),
         ],
       ),
+    );
+  }
+}
+
+class GameGLView extends StatelessWidget {
+  const GameGLView({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    const String viewType = 'game-gl-surface';
+
+    return PlatformViewLink(
+      viewType: viewType,
+      surfaceFactory: (context, controller) {
+        return AndroidViewSurface(
+          controller: controller as AndroidViewController,
+          gestureRecognizers: const <Factory<OneSequenceGestureRecognizer>>{},
+          hitTestBehavior: PlatformViewHitTestBehavior.opaque,
+        );
+      },
+      onCreatePlatformView: (params) {
+        return PlatformViewsService.initSurfaceAndroidView(
+          id: params.id,
+          viewType: viewType,
+          layoutDirection: TextDirection.ltr,
+          creationParams: null,
+          creationParamsCodec: const StandardMessageCodec(),
+          onFocus: () {
+            params.onFocusChanged(true);
+          },
+        )
+          ..addOnPlatformViewCreatedListener(params.onPlatformViewCreated)
+          ..create();
+      },
     );
   }
 }

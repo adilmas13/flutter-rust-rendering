@@ -10,7 +10,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 2. Wait for user review and approval of the code in the phase file
 3. Only after approval, implement the code into the actual project files
 4. Mark phase checklist items complete in `plan.md`
-5. Wait for approval before starting the next phase
+5. Commit the code after each successful phase
+6. Wait for approval before starting the next phase
 
 ## Project Overview
 
