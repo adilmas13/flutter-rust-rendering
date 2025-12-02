@@ -69,18 +69,30 @@ A Flutter game demonstrating Dart/Rust interop through native platform layers. T
 ## Build Commands
 
 ```bash
-# Flutter
+# Flutter (Rust builds automatically via Gradle)
 flutter pub get
-flutter run
-flutter test
-flutter analyze
+flutter run                    # Debug build (debug Rust binary)
+flutter run --release          # Release build (release Rust binary)
+flutter build apk --release    # Build release APK
 
-# Rust (from rust/ directory)
-cargo build --release --target aarch64-linux-android    # Android ARM64
-cargo build --release --target aarch64-apple-ios        # iOS ARM64
+# Manual Rust build (from rust/ directory)
+./build_android.sh             # Release build
+cargo ndk -t arm64-v8a build   # Debug build
+cargo ndk -t arm64-v8a build --release  # Release build
+```
 
-# Android NDK build (generates .so files)
-cargo ndk -t arm64-v8a build --release
+## Android Build Integration
+
+Rust library builds automatically when running Flutter:
+- `flutter run` → builds Rust in debug mode
+- `flutter run --release` → builds Rust in release mode
+- `flutter build apk --release` → builds Rust release + signed APK
+
+### Manual Gradle tasks
+```bash
+cd android
+./gradlew buildRustDebug       # Build Rust debug only
+./gradlew buildRustRelease     # Build Rust release only
 ```
 
 ## Key Dependencies

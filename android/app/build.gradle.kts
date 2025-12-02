@@ -5,6 +5,32 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+// Rust build configuration
+val rustProjectDir = file("../../rust")
+val jniLibsDir = file("src/main/jniLibs")
+
+tasks.register<Exec>("buildRustDebug") {
+    description = "Build Rust library for Android (debug)"
+    workingDir = rustProjectDir
+    commandLine("cargo", "ndk", "-t", "arm64-v8a", "-o", jniLibsDir.absolutePath, "build")
+}
+
+tasks.register<Exec>("buildRustRelease") {
+    description = "Build Rust library for Android (release)"
+    workingDir = rustProjectDir
+    commandLine("cargo", "ndk", "-t", "arm64-v8a", "-o", jniLibsDir.absolutePath, "build", "--release")
+}
+
+// Hook Rust build into Android build
+tasks.whenTaskAdded {
+    if (name == "mergeDebugJniLibFolders") {
+        dependsOn("buildRustDebug")
+    }
+    if (name == "mergeReleaseJniLibFolders") {
+        dependsOn("buildRustRelease")
+    }
+}
+
 android {
     namespace = "com.example.flutter_con"
     compileSdk = flutter.compileSdkVersion
