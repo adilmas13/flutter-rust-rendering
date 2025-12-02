@@ -77,13 +77,14 @@ Implement game rendering in Rust using egui + egui_glow.
 
 ---
 
-## Phase 7: egui UI Enhancements
+## Phase 7: Touch Drag Interaction ✅
 
-Add immediate-mode UI elements via egui.
+Enable dragging the box via touch input.
 
-- [ ] Create simple debug panel showing game state
-- [ ] Add in-game UI elements (score, status)
-- [ ] Handle touch input for egui interactions
+- [x] Add drag offset tracking to GameState
+- [x] Implement drag logic in game_touch()
+- [x] Box follows finger while dragging
+- [x] Demonstrates screen touch → Rust engine interaction
 
 ---
 
@@ -114,6 +115,6 @@ Final improvements and cleanup.
 
 ## Current Status
 
-**Active Phase**: Phase 6 completed
+**Active Phase**: Phase 7 completed
 
-**Next Step**: Awaiting approval to begin Phase 7 (egui UI Enhancements)
+**Next Step**: Awaiting approval to begin Phase 8 (iOS Support)
