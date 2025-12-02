@@ -1,3 +1,5 @@
+// JNI module only for Android
+#[cfg(target_os = "android")]
 mod jni;
 
 use std::sync::Arc;
@@ -5,11 +7,15 @@ use std::sync::Arc;
 use egui::{Color32, Pos2, Rect, Rounding, Stroke, Vec2};
 use glow::HasContext;
 
-// Link to EGL for eglGetProcAddress
+// Platform-specific GL loader
+#[cfg(target_os = "android")]
 #[link(name = "EGL")]
 extern "C" {
     fn eglGetProcAddress(procname: *const i8) -> *const std::ffi::c_void;
 }
+
+// iOS uses EAGL - GL functions are resolved at link time
+// No runtime loader needed
 
 /// Direction enum for player movement
 #[derive(Default, Clone, Copy, Debug, PartialEq)]
@@ -84,10 +90,11 @@ pub struct GameState {
 pub type GameHandle = *mut GameState;
 
 /// Initialize the game engine
-/// Called from GLSurfaceView.onSurfaceCreated()
+/// Called from GLSurfaceView.onSurfaceCreated() on Android
+/// Called from GLKView.setup() on iOS
 #[no_mangle]
 pub extern "C" fn game_init(width: u32, height: u32) -> GameHandle {
-    // Initialize Android logging
+    // Initialize platform-specific logging
     #[cfg(target_os = "android")]
     android_logger::init_once(
         android_logger::Config::default()
@@ -95,15 +102,39 @@ pub extern "C" fn game_init(width: u32, height: u32) -> GameHandle {
             .with_tag("RustGame"),
     );
 
+    #[cfg(target_os = "ios")]
+    {
+        // iOS logging via oslog
+        let _ = oslog::OsLogger::new("com.example.flutter_con")
+            .level_filter(log::LevelFilter::Debug)
+            .init();
+    }
+
     log::info!("game_init: {}x{}", width, height);
 
-    // Create glow context using eglGetProcAddress
+    // Create glow context - platform specific GL loader
+    #[cfg(target_os = "android")]
     let gl = unsafe {
         glow::Context::from_loader_function(|s| {
             let c_str = std::ffi::CString::new(s).unwrap();
             eglGetProcAddress(c_str.as_ptr() as *const i8)
         })
     };
+
+    #[cfg(target_os = "ios")]
+    let gl = unsafe {
+        // iOS: Use dlsym to load OpenGL ES functions
+        extern "C" {
+            fn dlsym(handle: *mut std::ffi::c_void, symbol: *const i8) -> *mut std::ffi::c_void;
+        }
+        const RTLD_DEFAULT: *mut std::ffi::c_void = -2isize as *mut std::ffi::c_void;
+
+        glow::Context::from_loader_function(|s| {
+            let c_str = std::ffi::CString::new(s).unwrap();
+            dlsym(RTLD_DEFAULT, c_str.as_ptr())
+        })
+    };
+
     let gl = Arc::new(gl);
 
     // Set initial viewport

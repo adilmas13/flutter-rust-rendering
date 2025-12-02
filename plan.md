@@ -88,16 +88,41 @@ Enable dragging the box via touch input.
 
 ---
 
-## Phase 8: iOS Support
+## Phase 8: iOS Support ✅
 
-Extend to iOS platform.
+Extend to iOS platform using OpenGL ES (EAGL) + GLKView.
 
-- [ ] Create iOS GLKit/Metal view
-- [ ] Build Rust static library for aarch64-apple-ios
-- [ ] Link Rust library in Xcode project
-- [ ] Implement C FFI calls from Swift/Objective-C
-- [ ] Register iOS PlatformView factory
-- [ ] Verify game runs on iOS
+### Architecture
+```
+Flutter (Dart) → MethodChannel → Swift → C FFI → Rust
+                                   ↓
+                              GLKView (OpenGL ES)
+```
+
+### Steps
+- [x] Update Rust code with iOS conditional compilation
+- [x] Update Cargo.toml with staticlib + iOS dependencies
+- [x] Create iOS build script (build_ios.sh)
+- [x] Create C header for Swift FFI (game_engine.h)
+- [x] Create iOS GLKView wrapper (GameGLView.swift)
+- [x] Create Flutter PlatformView factory (GamePlatformViewFactory.swift)
+- [x] Update AppDelegate.swift with MethodChannel + PlatformView
+- [x] Update bridging header
+- [x] Update Flutter Dart code (add UiKitView for iOS)
+- [x] Configure Xcode project (link Rust library, frameworks)
+- [x] Build and test on iOS simulator
+
+### Build Commands
+```bash
+# Install iOS targets
+rustup target add aarch64-apple-ios aarch64-apple-ios-sim x86_64-apple-ios
+
+# Build Rust for iOS
+./build_ios.sh
+
+# Build Flutter iOS
+flutter build ios --debug
+```
 
 ---
 
@@ -115,6 +140,6 @@ Final improvements and cleanup.
 
 ## Current Status
 
-**Active Phase**: Phase 7 completed
+**Active Phase**: Phase 8 (iOS Support) - Complete
 
-**Next Step**: Awaiting approval to begin Phase 8 (iOS Support)
+**Next Step**: Test on iOS device or begin Phase 9 (Polish and Optimization)

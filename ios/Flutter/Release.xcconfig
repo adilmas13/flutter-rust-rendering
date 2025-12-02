@@ -1,1 +1,5 @@
 #include "Generated.xcconfig"
+
+// Rust library for release/device builds
+LIBRARY_SEARCH_PATHS = $(inherited) $(PROJECT_DIR)/Runner/RustLib
+OTHER_LDFLAGS = $(inherited) -lgame_engine_device -lc++ -framework GLKit -framework OpenGLES

@@ -3,11 +3,51 @@ import UIKit
 
 @main
 @objc class AppDelegate: FlutterAppDelegate {
-  override func application(
-    _ application: UIApplication,
-    didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
-  ) -> Bool {
-    GeneratedPluginRegistrant.register(with: self)
-    return super.application(application, didFinishLaunchingWithOptions: launchOptions)
-  }
+    private var gameViewFactory: GamePlatformViewFactory?
+
+    override func application(
+        _ application: UIApplication,
+        didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
+    ) -> Bool {
+        let controller = window?.rootViewController as! FlutterViewController
+
+        // Register platform view factory
+        gameViewFactory = GamePlatformViewFactory(messenger: controller.binaryMessenger)
+        registrar(forPlugin: "GamePlugin")?.register(
+            gameViewFactory!,
+            withId: "game-gl-surface"
+        )
+
+        // Set up method channel for direction input
+        let channel = FlutterMethodChannel(
+            name: "com.example.flutter_con/game",
+            binaryMessenger: controller.binaryMessenger
+        )
+
+        channel.setMethodCallHandler { [weak self] call, result in
+            if call.method == "sendDirection" {
+                if let args = call.arguments as? [String: Any],
+                   let direction = args["direction"] as? String {
+                    let dirValue: Int32 = {
+                        switch direction {
+                        case "up": return 1
+                        case "down": return 2
+                        case "left": return 3
+                        case "right": return 4
+                        default: return 0
+                        }
+                    }()
+                    self?.gameViewFactory?.setDirection(dirValue)
+                    result(nil)
+                } else {
+                    result(FlutterError(code: "INVALID_ARGS", message: "Missing direction", details: nil))
+                }
+            } else {
+                result(FlutterMethodNotImplemented)
+            }
+        }
+
+        GeneratedPluginRegistrant.register(with: self)
+        return super.application(application, didFinishLaunchingWithOptions: launchOptions)
+    }
 }

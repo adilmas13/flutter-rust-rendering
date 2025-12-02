@@ -1,1 +1,5 @@
 #include "Generated.xcconfig"
+
+// Rust library for debug/simulator builds
+LIBRARY_SEARCH_PATHS = $(inherited) $(PROJECT_DIR)/Runner/RustLib
+OTHER_LDFLAGS = $(inherited) -lgame_engine_sim -lc++ -framework GLKit -framework OpenGLES
