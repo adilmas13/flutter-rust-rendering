@@ -73,6 +73,8 @@ pub struct GameState {
 
     // Touch state
     is_player_touched: bool,
+    drag_offset_x: f32,
+    drag_offset_y: f32,
 
     // Time tracking
     last_frame_time: std::time::Instant,
@@ -134,6 +136,8 @@ pub extern "C" fn game_init(width: u32, height: u32) -> GameHandle {
         player_size,
         current_direction: Direction::None,
         is_player_touched: false,
+        drag_offset_x: 0.0,
+        drag_offset_y: 0.0,
         last_frame_time: std::time::Instant::now(),
     });
 
@@ -304,6 +308,9 @@ pub extern "C" fn game_touch(handle: GameHandle, x: f32, y: f32, action: i32) {
         TouchAction::Down => {
             if is_on_player {
                 state.is_player_touched = true;
+                // Store offset from touch point to player center
+                state.drag_offset_x = state.player_x - x;
+                state.drag_offset_y = state.player_y - y;
                 log::info!("Player touched at ({}, {})", x, y);
             }
         }
@@ -314,7 +321,16 @@ pub extern "C" fn game_touch(handle: GameHandle, x: f32, y: f32, action: i32) {
             state.is_player_touched = false;
         }
         TouchAction::Move => {
-            // Could be used for drag behavior later
+            // Drag player if touched
+            if state.is_player_touched {
+                state.player_x = x + state.drag_offset_x;
+                state.player_y = y + state.drag_offset_y;
+
+                // Clamp to screen bounds
+                let half = state.player_size / 2.0;
+                state.player_x = state.player_x.clamp(half, state.width as f32 - half);
+                state.player_y = state.player_y.clamp(half, state.height as f32 - half);
+            }
         }
     }
 }
