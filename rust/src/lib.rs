@@ -117,12 +117,18 @@ pub struct GameState {
     velocity_x: f32,
     velocity_y: f32,
 
+    // Player texture (keep TextureHandle alive to prevent texture from being freed)
+    player_texture: Option<egui::TextureHandle>,
+
     // Time tracking
     last_frame_time: std::time::Instant,
 }
 
 /// Opaque handle for FFI
 pub type GameHandle = *mut GameState;
+
+/// Embed player image at compile time
+const PLAYER_IMAGE_BYTES: &[u8] = include_bytes!("../assets/player.png");
 
 /// Initialize the game engine
 /// Called from GLSurfaceView.onSurfaceCreated() on Android
@@ -202,6 +208,28 @@ pub extern "C" fn game_init(width: u32, height: u32) -> GameHandle {
 
         let player_size = 200.0;
 
+        // Load player texture from embedded PNG
+        let player_texture = match image::load_from_memory(PLAYER_IMAGE_BYTES) {
+            Ok(img) => {
+                let rgba = img.to_rgba8();
+                let size = [rgba.width() as usize, rgba.height() as usize];
+                let pixels = rgba.into_raw();
+
+                let color_image = egui::ColorImage::from_rgba_unmultiplied(size, &pixels);
+                let texture = egui_ctx.load_texture(
+                    "player",
+                    color_image,
+                    egui::TextureOptions::LINEAR,
+                );
+                log::info!("Player texture loaded: {}x{}", size[0], size[1]);
+                Some(texture) // Store the TextureHandle, not just the id
+            }
+            Err(e) => {
+                log::error!("Failed to load player image: {}", e);
+                None
+            }
+        };
+
         let state = Box::new(GameState {
             gl,
             width,
@@ -218,6 +246,7 @@ pub extern "C" fn game_init(width: u32, height: u32) -> GameHandle {
             game_mode: GameMode::Manual,
             velocity_x: 0.0,
             velocity_y: 0.0,
+            player_texture,
             last_frame_time: std::time::Instant::now(),
         });
 
@@ -341,7 +370,7 @@ pub extern "C" fn game_render(handle: GameHandle) {
         let player_y = state.player_y;
         let player_size = state.player_size;
         let is_touched = state.is_player_touched;
-        let direction = state.current_direction;
+        let player_texture_id = state.player_texture.as_ref().map(|t| t.id());
 
         // Run egui frame
         let raw_input = egui::RawInput {
@@ -352,38 +381,39 @@ pub extern "C" fn game_render(handle: GameHandle) {
         let full_output = state.egui_ctx.run(raw_input, |ctx| {
             let painter = ctx.layer_painter(egui::LayerId::background());
 
-            // Choose color based on state (pre-defined colors for performance)
-            let fill_color = if is_touched {
-                Color32::from_rgb(255, 150, 50) // Orange when touched
-            } else {
-                match direction {
-                    Direction::Up => Color32::from_rgb(50, 200, 50),
-                    Direction::Down => Color32::from_rgb(200, 50, 50),
-                    Direction::Left => Color32::from_rgb(50, 50, 200),
-                    Direction::Right => Color32::from_rgb(200, 200, 50),
-                    Direction::None => Color32::from_rgb(150, 150, 150),
-                }
-            };
-
             let center = Pos2::new(player_x, player_y);
-            let half = player_size / 2.0;
-
-            // Draw player box
             let rect = Rect::from_center_size(center, Vec2::splat(player_size));
-            painter.rect(
-                rect,
-                Rounding::same(8.0),
-                fill_color,
-                Stroke::new(2.0, Color32::WHITE),
-            );
 
-            // Draw inner circle
-            painter.circle(
-                center,
-                half * 0.6,
-                fill_color.gamma_multiply(0.7),
-                Stroke::new(1.5, Color32::WHITE),
-            );
+            // Draw player image or fallback to box
+            if let Some(tex_id) = player_texture_id {
+                // Apply tint when touched
+                let tint = if is_touched {
+                    Color32::from_rgb(255, 200, 150) // Orange tint
+                } else {
+                    Color32::WHITE // No tint
+                };
+
+                painter.image(
+                    tex_id,
+                    rect,
+                    Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0)), // UV coords
+                    tint,
+                );
+            } else {
+                // Fallback: draw colored box if texture failed to load
+                let fill_color = if is_touched {
+                    Color32::from_rgb(255, 150, 50)
+                } else {
+                    Color32::from_rgb(150, 150, 150)
+                };
+
+                painter.rect(
+                    rect,
+                    Rounding::same(8.0),
+                    fill_color,
+                    Stroke::new(2.0, Color32::WHITE),
+                );
+            }
         });
 
         // Tessellate and paint

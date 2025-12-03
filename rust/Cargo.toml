@@ -20,6 +20,9 @@ egui_glow = { version = "0.29", default-features = false }
 # Logging
 log = "0.4"
 
+# Image loading for textures
+image = { version = "0.25", default-features = false, features = ["png"] }
+
 # Android-specific dependencies
 [target.'cfg(target_os = "android")'.dependencies]
 android_logger = "0.14"

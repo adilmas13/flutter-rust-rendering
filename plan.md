@@ -185,8 +185,28 @@ Flutter (Mode Buttons) → MethodChannel → Rust (GameMode enum)
 
 ---
 
+## Phase 11: Replace Box with Image ✅
+
+Replace the colored box player with an image sprite.
+
+### Features
+- [x] Add `image` crate dependency for PNG loading
+- [x] Embed player.png using `include_bytes!`
+- [x] Load image as egui texture in game_init()
+- [x] Render with `painter.image()` instead of box
+- [x] Tint effect when touched
+- [x] Fallback to box if texture fails to load
+- [x] Build and test on Android
+
+### Files Modified
+- `rust/Cargo.toml` - Added image crate
+- `rust/assets/player.png` - Player sprite image
+- `rust/src/lib.rs` - Texture loading and rendering
+
+---
+
 ## Current Status
 
-**Active Phase**: Phase 10 (Auto/Manual Mode) - Complete
+**Active Phase**: Phase 11 (Image Sprite) - Complete
 
-**Completed**: All 10 phases implemented
+**Completed**: All 11 phases implemented
