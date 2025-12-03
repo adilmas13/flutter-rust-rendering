@@ -35,6 +35,7 @@ class GameScreen extends StatefulWidget {
 class _GameScreenState extends State<GameScreen> {
   static const platform = MethodChannel('com.example.flutter_con/game');
   String _lastDirection = 'none';
+  bool _isAutoMode = false;
 
   Future<void> _sendDirection(String direction) async {
     setState(() {
@@ -48,6 +49,18 @@ class _GameScreenState extends State<GameScreen> {
     }
   }
 
+  Future<void> _setMode(bool auto) async {
+    setState(() {
+      _isAutoMode = auto;
+    });
+
+    try {
+      await platform.invokeMethod('setMode', {'mode': auto ? 1 : 0});
+    } on PlatformException catch (e) {
+      debugPrint('Failed to set mode: ${e.message}');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -57,10 +70,36 @@ class _GameScreenState extends State<GameScreen> {
       ),
       body: Column(
         children: [
+          // Mode toggle buttons
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                ElevatedButton(
+                  onPressed: () => _setMode(false),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: !_isAutoMode ? Colors.blue : Colors.grey,
+                    foregroundColor: Colors.white,
+                  ),
+                  child: const Text('Manual'),
+                ),
+                const SizedBox(width: 16),
+                ElevatedButton(
+                  onPressed: () => _setMode(true),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _isAutoMode ? Colors.blue : Colors.grey,
+                    foregroundColor: Colors.white,
+                  ),
+                  child: const Text('Auto'),
+                ),
+              ],
+            ),
+          ),
           // Game view - Android PlatformView with Hybrid Composition
           Expanded(
             child: Container(
-              margin: const EdgeInsets.all(16),
+              margin: const EdgeInsets.symmetric(horizontal: 16),
               clipBehavior: Clip.hardEdge,
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(8),
@@ -71,13 +110,21 @@ class _GameScreenState extends State<GameScreen> {
           ),
           // Direction indicator
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Text('Last direction: $_lastDirection'),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Text(
+              _isAutoMode ? 'Mode: Auto (bouncing)' : 'Last direction: $_lastDirection',
+            ),
           ),
-          // Direction pad
+          // Direction pad (disabled in auto mode)
           Padding(
             padding: const EdgeInsets.all(24),
-            child: DirectionPad(onDirectionPressed: _sendDirection),
+            child: IgnorePointer(
+              ignoring: _isAutoMode,
+              child: Opacity(
+                opacity: _isAutoMode ? 0.3 : 1.0,
+                child: DirectionPad(onDirectionPressed: _sendDirection),
+              ),
+            ),
           ),
         ],
       ),

@@ -25,7 +25,8 @@ import UIKit
         )
 
         channel.setMethodCallHandler { [weak self] call, result in
-            if call.method == "sendDirection" {
+            switch call.method {
+            case "sendDirection":
                 if let args = call.arguments as? [String: Any],
                    let direction = args["direction"] as? String {
                     let dirValue: Int32 = {
@@ -42,7 +43,15 @@ import UIKit
                 } else {
                     result(FlutterError(code: "INVALID_ARGS", message: "Missing direction", details: nil))
                 }
-            } else {
+            case "setMode":
+                if let args = call.arguments as? [String: Any],
+                   let mode = args["mode"] as? Int32 {
+                    self?.gameViewFactory?.setMode(mode)
+                    result(nil)
+                } else {
+                    result(FlutterError(code: "INVALID_ARGS", message: "Missing mode", details: nil))
+                }
+            default:
                 result(FlutterMethodNotImplemented)
             }
         }

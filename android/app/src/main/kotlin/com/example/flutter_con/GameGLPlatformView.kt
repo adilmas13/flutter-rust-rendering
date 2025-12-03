@@ -33,6 +33,12 @@ class GameGLPlatformView(
     fun setDirection(direction: String) {
         renderer.setDirection(direction)
     }
+
+    fun setMode(mode: Int) {
+        glSurfaceView.queueEvent {
+            renderer.setMode(mode)
+        }
+    }
 }
 
 @SuppressLint("ViewConstructor")

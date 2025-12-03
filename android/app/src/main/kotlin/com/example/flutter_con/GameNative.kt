@@ -11,6 +11,7 @@ object GameNative {
     external fun gameUpdate(handle: Long)
     external fun gameRender(handle: Long)
     external fun gameSetDirection(handle: Long, direction: Int)
+    external fun gameSetMode(handle: Long, mode: Int)
     external fun gameTouch(handle: Long, x: Float, y: Float, action: Int)
     external fun gameDestroy(handle: Long)
 
@@ -25,4 +26,8 @@ object GameNative {
     const val TOUCH_DOWN = 0
     const val TOUCH_UP = 1
     const val TOUCH_MOVE = 2
+
+    // Game mode constants matching Rust enum
+    const val MODE_MANUAL = 0
+    const val MODE_AUTO = 1
 }

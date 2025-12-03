@@ -22,6 +22,9 @@ void game_render(GameHandle handle);
 // Set movement direction (0=none, 1=up, 2=down, 3=left, 4=right)
 void game_set_direction(GameHandle handle, int32_t direction);
 
+// Set game mode (0=manual, 1=auto)
+void game_set_mode(GameHandle handle, int32_t mode);
+
 // Handle touch events (action: 0=down, 1=up, 2=move)
 void game_touch(GameHandle handle, float x, float y, int32_t action);
 

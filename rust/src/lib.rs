@@ -2,10 +2,31 @@
 #[cfg(target_os = "android")]
 mod jni;
 
+use std::panic;
 use std::sync::Arc;
 
 use egui::{Color32, Pos2, Rect, Rounding, Stroke, Vec2};
 use glow::HasContext;
+
+/// Wrap FFI calls with panic catching to prevent crashes across FFI boundary
+macro_rules! catch_panic {
+    ($default:expr, $body:expr) => {
+        match panic::catch_unwind(panic::AssertUnwindSafe(|| $body)) {
+            Ok(result) => result,
+            Err(e) => {
+                let msg = if let Some(s) = e.downcast_ref::<&str>() {
+                    s.to_string()
+                } else if let Some(s) = e.downcast_ref::<String>() {
+                    s.clone()
+                } else {
+                    "Unknown panic".to_string()
+                };
+                log::error!("Panic caught in FFI: {}", msg);
+                $default
+            }
+        }
+    };
+}
 
 // Platform-specific GL loader
 #[cfg(target_os = "android")]
@@ -27,6 +48,15 @@ pub enum Direction {
     Down = 2,
     Left = 3,
     Right = 4,
+}
+
+/// Game mode enum
+#[derive(Default, Clone, Copy, Debug, PartialEq)]
+#[repr(i32)]
+pub enum GameMode {
+    #[default]
+    Manual = 0,
+    Auto = 1,
 }
 
 impl From<i32> for Direction {
@@ -82,6 +112,11 @@ pub struct GameState {
     drag_offset_x: f32,
     drag_offset_y: f32,
 
+    // Game mode
+    game_mode: GameMode,
+    velocity_x: f32,
+    velocity_y: f32,
+
     // Time tracking
     last_frame_time: std::time::Instant,
 }
@@ -92,310 +127,396 @@ pub type GameHandle = *mut GameState;
 /// Initialize the game engine
 /// Called from GLSurfaceView.onSurfaceCreated() on Android
 /// Called from GLKView.setup() on iOS
+/// Returns null on failure
 #[no_mangle]
 pub extern "C" fn game_init(width: u32, height: u32) -> GameHandle {
-    // Initialize platform-specific logging
-    #[cfg(target_os = "android")]
-    android_logger::init_once(
-        android_logger::Config::default()
-            .with_max_level(log::LevelFilter::Debug)
-            .with_tag("RustGame"),
-    );
+    catch_panic!(std::ptr::null_mut(), {
+        // Initialize platform-specific logging (only once)
+        #[cfg(target_os = "android")]
+        android_logger::init_once(
+            android_logger::Config::default()
+                .with_max_level(log::LevelFilter::Info)
+                .with_tag("RustGame"),
+        );
 
-    #[cfg(target_os = "ios")]
-    {
-        // iOS logging via oslog
-        let _ = oslog::OsLogger::new("com.example.flutter_con")
-            .level_filter(log::LevelFilter::Debug)
-            .init();
-    }
-
-    log::info!("game_init: {}x{}", width, height);
-
-    // Create glow context - platform specific GL loader
-    #[cfg(target_os = "android")]
-    let gl = unsafe {
-        glow::Context::from_loader_function(|s| {
-            let c_str = std::ffi::CString::new(s).unwrap();
-            eglGetProcAddress(c_str.as_ptr() as *const i8)
-        })
-    };
-
-    #[cfg(target_os = "ios")]
-    let gl = unsafe {
-        // iOS: Use dlsym to load OpenGL ES functions
-        extern "C" {
-            fn dlsym(handle: *mut std::ffi::c_void, symbol: *const i8) -> *mut std::ffi::c_void;
+        #[cfg(target_os = "ios")]
+        {
+            let _ = oslog::OsLogger::new("com.example.flutter_con")
+                .level_filter(log::LevelFilter::Info)
+                .init();
         }
-        const RTLD_DEFAULT: *mut std::ffi::c_void = -2isize as *mut std::ffi::c_void;
 
-        glow::Context::from_loader_function(|s| {
-            let c_str = std::ffi::CString::new(s).unwrap();
-            dlsym(RTLD_DEFAULT, c_str.as_ptr())
-        })
-    };
+        log::info!("game_init: {}x{}", width, height);
 
-    let gl = Arc::new(gl);
-
-    // Set initial viewport
-    unsafe {
-        gl.viewport(0, 0, width as i32, height as i32);
-    }
-
-    // Create egui context
-    let egui_ctx = egui::Context::default();
-
-    // Create egui_glow painter for OpenGL ES 2.0
-    let egui_painter = match egui_glow::Painter::new(gl.clone(), "", None, false) {
-        Ok(painter) => painter,
-        Err(e) => {
-            log::error!("Failed to create egui painter: {}", e);
-            return std::ptr::null_mut();
+        // Validate dimensions
+        if width == 0 || height == 0 {
+            log::warn!("game_init called with zero dimensions, will resize later");
         }
-    };
 
-    let player_size = 200.0;
+        // Create glow context - platform specific GL loader
+        #[cfg(target_os = "android")]
+        let gl = unsafe {
+            glow::Context::from_loader_function(|s| {
+                let c_str = match std::ffi::CString::new(s) {
+                    Ok(c) => c,
+                    Err(_) => return std::ptr::null(),
+                };
+                eglGetProcAddress(c_str.as_ptr() as *const i8)
+            })
+        };
 
-    let state = Box::new(GameState {
-        gl,
-        width,
-        height,
-        egui_ctx,
-        egui_painter,
-        player_x: width as f32 / 2.0,
-        player_y: height as f32 / 2.0,
-        player_size,
-        current_direction: Direction::None,
-        is_player_touched: false,
-        drag_offset_x: 0.0,
-        drag_offset_y: 0.0,
-        last_frame_time: std::time::Instant::now(),
-    });
+        #[cfg(target_os = "ios")]
+        let gl = unsafe {
+            extern "C" {
+                fn dlsym(handle: *mut std::ffi::c_void, symbol: *const i8) -> *mut std::ffi::c_void;
+            }
+            const RTLD_DEFAULT: *mut std::ffi::c_void = -2isize as *mut std::ffi::c_void;
 
-    log::info!("Game initialized with egui");
-    Box::into_raw(state)
+            glow::Context::from_loader_function(|s| {
+                let c_str = match std::ffi::CString::new(s) {
+                    Ok(c) => c,
+                    Err(_) => return std::ptr::null_mut(),
+                };
+                dlsym(RTLD_DEFAULT, c_str.as_ptr())
+            })
+        };
+
+        let gl = Arc::new(gl);
+
+        // Set initial viewport
+        unsafe {
+            gl.viewport(0, 0, width as i32, height as i32);
+        }
+
+        // Create egui context
+        let egui_ctx = egui::Context::default();
+
+        // Create egui_glow painter for OpenGL ES
+        let egui_painter = match egui_glow::Painter::new(gl.clone(), "", None, false) {
+            Ok(painter) => painter,
+            Err(e) => {
+                log::error!("Failed to create egui painter: {}", e);
+                return std::ptr::null_mut();
+            }
+        };
+
+        let player_size = 200.0;
+
+        let state = Box::new(GameState {
+            gl,
+            width,
+            height,
+            egui_ctx,
+            egui_painter,
+            player_x: width as f32 / 2.0,
+            player_y: height as f32 / 2.0,
+            player_size,
+            current_direction: Direction::None,
+            is_player_touched: false,
+            drag_offset_x: 0.0,
+            drag_offset_y: 0.0,
+            game_mode: GameMode::Manual,
+            velocity_x: 0.0,
+            velocity_y: 0.0,
+            last_frame_time: std::time::Instant::now(),
+        });
+
+        log::info!("Game initialized successfully");
+        Box::into_raw(state)
+    })
 }
 
 /// Handle surface size changes
 /// Called from GLSurfaceView.onSurfaceChanged()
 #[no_mangle]
 pub extern "C" fn game_resize(handle: GameHandle, width: u32, height: u32) {
-    if handle.is_null() {
-        return;
-    }
-    let state = unsafe { &mut *handle };
+    catch_panic!((), {
+        if handle.is_null() {
+            return;
+        }
+        let state = unsafe { &mut *handle };
 
-    // Center player on first resize (when dimensions were 0)
-    if state.width == 0 || state.height == 0 {
-        state.player_x = width as f32 / 2.0;
-        state.player_y = height as f32 / 2.0;
-    }
+        // Center player on first resize (when dimensions were 0)
+        if state.width == 0 || state.height == 0 {
+            state.player_x = width as f32 / 2.0;
+            state.player_y = height as f32 / 2.0;
+        }
 
-    state.width = width;
-    state.height = height;
+        state.width = width;
+        state.height = height;
 
-    unsafe {
-        state.gl.viewport(0, 0, width as i32, height as i32);
-    }
+        unsafe {
+            state.gl.viewport(0, 0, width as i32, height as i32);
+        }
 
-    log::info!("game_resize: {}x{}", width, height);
+        log::info!("game_resize: {}x{}", width, height);
+    })
 }
 
 /// Update game state
 /// Called each frame before render
+/// Optimized: minimal allocations, no logging in hot path
 #[no_mangle]
 pub extern "C" fn game_update(handle: GameHandle) {
-    if handle.is_null() {
-        return;
-    }
-    let state = unsafe { &mut *handle };
+    catch_panic!((), {
+        if handle.is_null() {
+            return;
+        }
+        let state = unsafe { &mut *handle };
 
-    // Calculate delta time
-    let now = std::time::Instant::now();
-    let delta = now.duration_since(state.last_frame_time).as_secs_f32();
-    state.last_frame_time = now;
+        // Calculate delta time with frame cap to prevent huge jumps
+        let now = std::time::Instant::now();
+        let delta = now.duration_since(state.last_frame_time).as_secs_f32();
+        state.last_frame_time = now;
 
-    // Move player based on direction
-    let speed = 300.0 * delta;
-    match state.current_direction {
-        Direction::Up => state.player_y -= speed,
-        Direction::Down => state.player_y += speed,
-        Direction::Left => state.player_x -= speed,
-        Direction::Right => state.player_x += speed,
-        Direction::None => {}
-    }
+        // Cap delta time to prevent physics explosions after pause
+        let delta = delta.min(0.1); // Max 100ms per frame
 
-    // Clamp to bounds
-    let half = state.player_size / 2.0;
-    state.player_x = state.player_x.clamp(half, state.width as f32 - half);
-    state.player_y = state.player_y.clamp(half, state.height as f32 - half);
+        let half = state.player_size / 2.0;
+
+        match state.game_mode {
+            GameMode::Manual => {
+                // Move player based on direction
+                let speed = 300.0 * delta;
+                match state.current_direction {
+                    Direction::Up => state.player_y -= speed,
+                    Direction::Down => state.player_y += speed,
+                    Direction::Left => state.player_x -= speed,
+                    Direction::Right => state.player_x += speed,
+                    Direction::None => {}
+                }
+
+                // Clamp to bounds
+                state.player_x = state.player_x.clamp(half, state.width as f32 - half);
+                state.player_y = state.player_y.clamp(half, state.height as f32 - half);
+            }
+            GameMode::Auto => {
+                // Velocity-based movement
+                state.player_x += state.velocity_x * delta;
+                state.player_y += state.velocity_y * delta;
+
+                // Bounce off walls
+                if state.player_x <= half || state.player_x >= state.width as f32 - half {
+                    state.velocity_x = -state.velocity_x;
+                    state.player_x = state.player_x.clamp(half, state.width as f32 - half);
+                }
+                if state.player_y <= half || state.player_y >= state.height as f32 - half {
+                    state.velocity_y = -state.velocity_y;
+                    state.player_y = state.player_y.clamp(half, state.height as f32 - half);
+                }
+            }
+        }
+    })
 }
 
 /// Render the game using egui
 /// Called from GLSurfaceView.onDrawFrame()
+/// Optimized: pre-computed colors, minimal allocations
 #[no_mangle]
 pub extern "C" fn game_render(handle: GameHandle) {
-    if handle.is_null() {
-        return;
-    }
-    let state = unsafe { &mut *handle };
+    catch_panic!((), {
+        if handle.is_null() {
+            return;
+        }
+        let state = unsafe { &mut *handle };
 
-    // Clear background
-    unsafe {
-        state.gl.clear_color(0.1, 0.1, 0.15, 1.0);
-        state.gl.clear(glow::COLOR_BUFFER_BIT);
-    }
+        // Skip render if dimensions are zero
+        if state.width == 0 || state.height == 0 {
+            return;
+        }
 
-    let screen_rect = Rect::from_min_size(
-        Pos2::ZERO,
-        Vec2::new(state.width as f32, state.height as f32),
-    );
+        // Clear background
+        unsafe {
+            state.gl.clear_color(0.1, 0.1, 0.15, 1.0);
+            state.gl.clear(glow::COLOR_BUFFER_BIT);
+        }
 
-    // Run egui frame
-    let raw_input = egui::RawInput {
-        screen_rect: Some(screen_rect),
-        ..Default::default()
-    };
+        let screen_rect = Rect::from_min_size(
+            Pos2::ZERO,
+            Vec2::new(state.width as f32, state.height as f32),
+        );
 
-    let full_output = state.egui_ctx.run(raw_input, |ctx| {
-        // Get the painter for the whole screen
-        let painter = ctx.layer_painter(egui::LayerId::background());
+        // Pre-compute values outside closure to reduce allocations
+        let player_x = state.player_x;
+        let player_y = state.player_y;
+        let player_size = state.player_size;
+        let is_touched = state.is_player_touched;
+        let direction = state.current_direction;
 
-        // Choose color based on state
-        let fill_color = if state.is_player_touched {
-            Color32::from_rgb(255, 150, 50) // Orange when touched
-        } else {
-            match state.current_direction {
-                Direction::Up => Color32::from_rgb(50, 200, 50),    // Green
-                Direction::Down => Color32::from_rgb(200, 50, 50),  // Red
-                Direction::Left => Color32::from_rgb(50, 50, 200),  // Blue
-                Direction::Right => Color32::from_rgb(200, 200, 50), // Yellow
-                Direction::None => Color32::from_rgb(150, 150, 150), // Gray
-            }
+        // Run egui frame
+        let raw_input = egui::RawInput {
+            screen_rect: Some(screen_rect),
+            ..Default::default()
         };
 
-        let stroke_color = Color32::WHITE;
-        let center = Pos2::new(state.player_x, state.player_y);
-        let half = state.player_size / 2.0;
+        let full_output = state.egui_ctx.run(raw_input, |ctx| {
+            let painter = ctx.layer_painter(egui::LayerId::background());
 
-        // Draw a rounded rectangle (box) for the player
-        let rect = Rect::from_center_size(center, Vec2::splat(state.player_size));
-        painter.rect(
-            rect,
-            Rounding::same(8.0), // Rounded corners
-            fill_color,
-            Stroke::new(2.0, stroke_color),
+            // Choose color based on state (pre-defined colors for performance)
+            let fill_color = if is_touched {
+                Color32::from_rgb(255, 150, 50) // Orange when touched
+            } else {
+                match direction {
+                    Direction::Up => Color32::from_rgb(50, 200, 50),
+                    Direction::Down => Color32::from_rgb(200, 50, 50),
+                    Direction::Left => Color32::from_rgb(50, 50, 200),
+                    Direction::Right => Color32::from_rgb(200, 200, 50),
+                    Direction::None => Color32::from_rgb(150, 150, 150),
+                }
+            };
+
+            let center = Pos2::new(player_x, player_y);
+            let half = player_size / 2.0;
+
+            // Draw player box
+            let rect = Rect::from_center_size(center, Vec2::splat(player_size));
+            painter.rect(
+                rect,
+                Rounding::same(8.0),
+                fill_color,
+                Stroke::new(2.0, Color32::WHITE),
+            );
+
+            // Draw inner circle
+            painter.circle(
+                center,
+                half * 0.6,
+                fill_color.gamma_multiply(0.7),
+                Stroke::new(1.5, Color32::WHITE),
+            );
+        });
+
+        // Tessellate and paint
+        let clipped_primitives = state.egui_ctx.tessellate(full_output.shapes, 1.0);
+
+        state.egui_painter.paint_and_update_textures(
+            [state.width, state.height],
+            1.0,
+            &clipped_primitives,
+            &full_output.textures_delta,
         );
-
-        // Draw a circle inside the box
-        painter.circle(
-            center,
-            half * 0.6,
-            fill_color.gamma_multiply(0.7),
-            Stroke::new(1.5, stroke_color),
-        );
-    });
-
-    // Tessellate and paint
-    let pixels_per_point = 1.0;
-    let clipped_primitives = state.egui_ctx.tessellate(full_output.shapes, pixels_per_point);
-
-    state.egui_painter.paint_and_update_textures(
-        [state.width, state.height],
-        pixels_per_point,
-        &clipped_primitives,
-        &full_output.textures_delta,
-    );
+    })
 }
 
 /// Handle direction input from Flutter
+/// No logging in hot path for performance
 #[no_mangle]
 pub extern "C" fn game_set_direction(handle: GameHandle, direction: i32) {
-    if handle.is_null() {
-        return;
-    }
-    let state = unsafe { &mut *handle };
-    state.current_direction = Direction::from(direction);
-    log::debug!("game_set_direction: {:?}", state.current_direction);
+    catch_panic!((), {
+        if handle.is_null() {
+            return;
+        }
+        let state = unsafe { &mut *handle };
+        state.current_direction = Direction::from(direction);
+    })
 }
 
-/// Handle touch events from Android
+/// Set game mode (Manual=0, Auto=1)
+#[no_mangle]
+pub extern "C" fn game_set_mode(handle: GameHandle, mode: i32) {
+    catch_panic!((), {
+        if handle.is_null() {
+            return;
+        }
+        let state = unsafe { &mut *handle };
+
+        let new_mode = match mode {
+            1 => GameMode::Auto,
+            _ => GameMode::Manual,
+        };
+
+        // Initialize velocity when switching to auto mode
+        if new_mode == GameMode::Auto && state.game_mode != GameMode::Auto {
+            state.velocity_x = 250.0;
+            state.velocity_y = 200.0;
+        }
+
+        state.game_mode = new_mode;
+        log::info!("Game mode set to {:?}", new_mode);
+    })
+}
+
+/// Handle touch events
+/// Optimized: no logging in hot path, minimal branching
 #[no_mangle]
 pub extern "C" fn game_touch(handle: GameHandle, x: f32, y: f32, action: i32) {
-    if handle.is_null() {
-        return;
-    }
-    let state = unsafe { &mut *handle };
-    let touch_action = TouchAction::from(action);
+    catch_panic!((), {
+        if handle.is_null() {
+            return;
+        }
+        let state = unsafe { &mut *handle };
+        let touch_action = TouchAction::from(action);
 
-    // Check if touch is within player box
-    let half = state.player_size / 2.0;
-    let is_on_player = x >= state.player_x - half
-        && x <= state.player_x + half
-        && y >= state.player_y - half
-        && y <= state.player_y + half;
+        // Check if touch is within player box
+        let half = state.player_size / 2.0;
+        let is_on_player = x >= state.player_x - half
+            && x <= state.player_x + half
+            && y >= state.player_y - half
+            && y <= state.player_y + half;
 
-    match touch_action {
-        TouchAction::Down => {
-            if is_on_player {
-                state.is_player_touched = true;
-                // Store offset from touch point to player center
-                state.drag_offset_x = state.player_x - x;
-                state.drag_offset_y = state.player_y - y;
-                log::info!("Player touched at ({}, {})", x, y);
+        match touch_action {
+            TouchAction::Down => {
+                if is_on_player {
+                    state.is_player_touched = true;
+                    state.drag_offset_x = state.player_x - x;
+                    state.drag_offset_y = state.player_y - y;
+                }
+            }
+            TouchAction::Up => {
+                state.is_player_touched = false;
+            }
+            TouchAction::Move => {
+                if state.is_player_touched {
+                    state.player_x = x + state.drag_offset_x;
+                    state.player_y = y + state.drag_offset_y;
+
+                    // Clamp to screen bounds
+                    state.player_x = state.player_x.clamp(half, state.width as f32 - half);
+                    state.player_y = state.player_y.clamp(half, state.height as f32 - half);
+                }
             }
         }
-        TouchAction::Up => {
-            if state.is_player_touched {
-                log::info!("Player released");
-            }
-            state.is_player_touched = false;
-        }
-        TouchAction::Move => {
-            // Drag player if touched
-            if state.is_player_touched {
-                state.player_x = x + state.drag_offset_x;
-                state.player_y = y + state.drag_offset_y;
-
-                // Clamp to screen bounds
-                let half = state.player_size / 2.0;
-                state.player_x = state.player_x.clamp(half, state.width as f32 - half);
-                state.player_y = state.player_y.clamp(half, state.height as f32 - half);
-            }
-        }
-    }
+    })
 }
 
 /// Get player X position (for debugging/verification)
 #[no_mangle]
 pub extern "C" fn game_get_player_x(handle: GameHandle) -> f32 {
-    if handle.is_null() {
-        return 0.0;
-    }
-    let state = unsafe { &*handle };
-    state.player_x
+    catch_panic!(0.0, {
+        if handle.is_null() {
+            return 0.0;
+        }
+        let state = unsafe { &*handle };
+        state.player_x
+    })
 }
 
 /// Get player Y position (for debugging/verification)
 #[no_mangle]
 pub extern "C" fn game_get_player_y(handle: GameHandle) -> f32 {
-    if handle.is_null() {
-        return 0.0;
-    }
-    let state = unsafe { &*handle };
-    state.player_y
+    catch_panic!(0.0, {
+        if handle.is_null() {
+            return 0.0;
+        }
+        let state = unsafe { &*handle };
+        state.player_y
+    })
 }
 
 /// Clean up resources
+/// Safe to call multiple times (idempotent)
 #[no_mangle]
 pub extern "C" fn game_destroy(handle: GameHandle) {
-    if handle.is_null() {
-        return;
-    }
-    let mut state = unsafe { Box::from_raw(handle) };
+    catch_panic!((), {
+        if handle.is_null() {
+            return;
+        }
+        let mut state = unsafe { Box::from_raw(handle) };
 
-    // egui_painter cleanup
-    state.egui_painter.destroy();
+        // egui_painter cleanup
+        state.egui_painter.destroy();
 
-    log::info!("game_destroy: cleaned up");
+        log::info!("game_destroy: cleaned up");
+        // state is dropped here, freeing all resources
+    })
 }

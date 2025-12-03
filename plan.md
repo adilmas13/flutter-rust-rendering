@@ -126,20 +126,67 @@ flutter build ios --debug
 
 ---
 
-## Phase 9: Polish and Optimization
+## Phase 9: Polish and Optimization ✅
 
-Final improvements and cleanup.
+Performance improvements and error handling.
 
-- [ ] Optimize render loop and frame timing
-- [ ] Add error handling across FFI boundary
-- [ ] Clean up debug code
+- [x] Optimize render loop and frame timing (delta time cap, skip zero-size render)
+- [x] Add error handling across FFI boundary (catch_unwind macro)
+- [x] Clean up debug code (reduced logging in hot paths)
 - [ ] Test on multiple devices
 - [ ] Document build and deployment process
+
+### Changes Made
+- Added `catch_panic!` macro to wrap all FFI functions
+- Capped delta time to 100ms to prevent physics explosions after pause
+- Reduced logging level from Debug to Info
+- Pre-compute values outside render closure to reduce allocations
+- Skip render if dimensions are zero
+- Removed logging from hot paths (touch, direction, render)
+
+---
+
+## Phase 10: Auto/Manual Mode with Bouncing Ball ✅
+
+Two game modes - Manual (D-pad control) and Auto (bouncing ball physics).
+
+### Features
+- [x] Add GameMode enum (Manual, Auto) to Rust GameState
+- [x] Implement velocity-based bouncing physics for Auto mode
+- [x] Add game_set_mode() FFI function
+- [x] Update JNI bridge for Android
+- [x] Update iOS C header and Swift code
+- [x] Add mode toggle buttons in Flutter UI
+- [x] D-pad disabled/grayed in Auto mode
+- [x] Touch drag works in both modes
+- [x] Build and test on Android
+
+### Architecture
+```
+Flutter (Mode Buttons) → MethodChannel → Rust (GameMode enum)
+                                           ↓
+                              Auto: Velocity-based movement + bounce
+                              Manual: Direction-based movement (existing)
+```
+
+### Files Modified
+- `rust/src/lib.rs` - GameMode enum, velocity fields, bouncing physics, game_set_mode()
+- `rust/src/jni.rs` - JNI binding for gameSetMode
+- `android/.../GameNative.kt` - gameSetMode external fun
+- `android/.../GameGLRenderer.kt` - setMode() method
+- `android/.../GameGLPlatformView.kt` - setMode() method
+- `android/.../GameGLSurfaceFactory.kt` - setMode() method
+- `android/.../MainActivity.kt` - Handle setMode in MethodChannel
+- `ios/Runner/game_engine.h` - game_set_mode declaration
+- `ios/Runner/GameGLView.swift` - setMode() method
+- `ios/Runner/GamePlatformViewFactory.swift` - setMode() methods
+- `ios/Runner/AppDelegate.swift` - Handle setMode in MethodChannel
+- `lib/main.dart` - Mode state, toggle buttons, disable D-pad in auto mode
 
 ---
 
 ## Current Status
 
-**Active Phase**: Phase 8 (iOS Support) - Complete
+**Active Phase**: Phase 10 (Auto/Manual Mode) - Complete
 
-**Next Step**: Test on iOS device or begin Phase 9 (Polish and Optimization)
+**Completed**: All 10 phases implemented

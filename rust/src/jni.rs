@@ -4,7 +4,7 @@ use jni::JNIEnv;
 use jni::objects::JClass;
 use jni::sys::{jlong, jint, jfloat};
 
-use crate::{game_init, game_resize, game_update, game_render, game_set_direction, game_touch, game_destroy, GameHandle};
+use crate::{game_init, game_resize, game_update, game_render, game_set_direction, game_set_mode, game_touch, game_destroy, GameHandle};
 
 #[no_mangle]
 pub extern "system" fn Java_com_example_flutter_1con_GameNative_gameInit(
@@ -54,6 +54,16 @@ pub extern "system" fn Java_com_example_flutter_1con_GameNative_gameSetDirection
     direction: jint,
 ) {
     game_set_direction(handle as GameHandle, direction);
+}
+
+#[no_mangle]
+pub extern "system" fn Java_com_example_flutter_1con_GameNative_gameSetMode(
+    _env: JNIEnv,
+    _class: JClass,
+    handle: jlong,
+    mode: jint,
+) {
+    game_set_mode(handle as GameHandle, mode);
 }
 
 #[no_mangle]

@@ -27,6 +27,10 @@ class GamePlatformViewFactory: NSObject, FlutterPlatformViewFactory {
     func setDirection(_ direction: Int32) {
         lastCreatedView?.setDirection(direction)
     }
+
+    func setMode(_ mode: Int32) {
+        lastCreatedView?.setMode(mode)
+    }
 }
 
 class GamePlatformView: NSObject, FlutterPlatformView {
@@ -46,5 +50,9 @@ class GamePlatformView: NSObject, FlutterPlatformView {
 
     func setDirection(_ direction: Int32) {
         gameView.setDirection(direction)
+    }
+
+    func setMode(_ mode: Int32) {
+        gameView.setMode(mode)
     }
 }

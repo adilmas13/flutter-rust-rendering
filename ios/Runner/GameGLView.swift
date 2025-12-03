@@ -74,6 +74,11 @@ class GameGLView: GLKView {
         game_set_direction(handle, direction)
     }
 
+    func setMode(_ mode: Int32) {
+        guard let handle = gameHandle else { return }
+        game_set_mode(handle, mode)
+    }
+
     // MARK: - Touch Handling
 
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {

@@ -21,4 +21,8 @@ class GameGLSurfaceFactory(
     fun setDirection(direction: String) {
         currentView?.setDirection(direction)
     }
+
+    fun setMode(mode: Int) {
+        currentView?.setMode(mode)
+    }
 }

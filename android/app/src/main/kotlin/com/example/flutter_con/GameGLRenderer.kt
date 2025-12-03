@@ -58,6 +58,12 @@ class GameGLRenderer : GLSurfaceView.Renderer {
         }
     }
 
+    fun setMode(mode: Int) {
+        if (gameHandle != 0L) {
+            GameNative.gameSetMode(gameHandle, mode)
+        }
+    }
+
     fun onTouch(x: Float, y: Float, action: Int) {
         pendingTouch = TouchEvent(x, y, action)
     }
