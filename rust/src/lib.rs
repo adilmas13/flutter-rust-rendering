@@ -119,6 +119,10 @@ pub struct GameState {
 
     // Player texture (keep TextureHandle alive to prevent texture from being freed)
     player_texture: Option<egui::TextureHandle>,
+    player_texture_size: (f32, f32), // (width, height) of the original image
+
+    // Player tint color (changes on bounce)
+    player_tint: Color32,
 
     // Time tracking
     last_frame_time: std::time::Instant,
@@ -126,6 +130,21 @@ pub struct GameState {
 
 /// Opaque handle for FFI
 pub type GameHandle = *mut GameState;
+
+/// Generate a random bright color based on current time
+fn random_color() -> Color32 {
+    let time = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_nanos();
+
+    let r = ((time >> 0) & 0xFF) as u8;
+    let g = ((time >> 8) & 0xFF) as u8;
+    let b = ((time >> 16) & 0xFF) as u8;
+
+    // Ensure colors are bright (minimum 128)
+    Color32::from_rgb(128 + (r / 2), 128 + (g / 2), 128 + (b / 2))
+}
 
 /// Embed player image at compile time
 const PLAYER_IMAGE_BYTES: &[u8] = include_bytes!("../assets/player.png");
@@ -209,9 +228,11 @@ pub extern "C" fn game_init(width: u32, height: u32) -> GameHandle {
         let player_size = 200.0;
 
         // Load player texture from embedded PNG
-        let player_texture = match image::load_from_memory(PLAYER_IMAGE_BYTES) {
+        let (player_texture, player_texture_size) = match image::load_from_memory(PLAYER_IMAGE_BYTES) {
             Ok(img) => {
                 let rgba = img.to_rgba8();
+                let img_width = rgba.width() as f32;
+                let img_height = rgba.height() as f32;
                 let size = [rgba.width() as usize, rgba.height() as usize];
                 let pixels = rgba.into_raw();
 
@@ -221,12 +242,12 @@ pub extern "C" fn game_init(width: u32, height: u32) -> GameHandle {
                     color_image,
                     egui::TextureOptions::LINEAR,
                 );
-                log::info!("Player texture loaded: {}x{}", size[0], size[1]);
-                Some(texture) // Store the TextureHandle, not just the id
+                log::info!("Player texture loaded: {}x{}", img_width, img_height);
+                (Some(texture), (img_width, img_height))
             }
             Err(e) => {
                 log::error!("Failed to load player image: {}", e);
-                None
+                (None, (player_size, player_size)) // Default to square
             }
         };
 
@@ -247,6 +268,8 @@ pub extern "C" fn game_init(width: u32, height: u32) -> GameHandle {
             velocity_x: 0.0,
             velocity_y: 0.0,
             player_texture,
+            player_texture_size,
+            player_tint: Color32::WHITE,
             last_frame_time: std::time::Instant::now(),
         });
 
@@ -324,14 +347,16 @@ pub extern "C" fn game_update(handle: GameHandle) {
                 state.player_x += state.velocity_x * delta;
                 state.player_y += state.velocity_y * delta;
 
-                // Bounce off walls
+                // Bounce off walls and change color on each bounce
                 if state.player_x <= half || state.player_x >= state.width as f32 - half {
                     state.velocity_x = -state.velocity_x;
                     state.player_x = state.player_x.clamp(half, state.width as f32 - half);
+                    state.player_tint = random_color();
                 }
                 if state.player_y <= half || state.player_y >= state.height as f32 - half {
                     state.velocity_y = -state.velocity_y;
                     state.player_y = state.player_y.clamp(half, state.height as f32 - half);
+                    state.player_tint = random_color();
                 }
             }
         }
@@ -371,6 +396,8 @@ pub extern "C" fn game_render(handle: GameHandle) {
         let player_size = state.player_size;
         let is_touched = state.is_player_touched;
         let player_texture_id = state.player_texture.as_ref().map(|t| t.id());
+        let player_texture_size = state.player_texture_size;
+        let player_tint = state.player_tint;
 
         // Run egui frame
         let raw_input = egui::RawInput {
@@ -382,15 +409,27 @@ pub extern "C" fn game_render(handle: GameHandle) {
             let painter = ctx.layer_painter(egui::LayerId::background());
 
             let center = Pos2::new(player_x, player_y);
-            let rect = Rect::from_center_size(center, Vec2::splat(player_size));
+
+            // Calculate render size maintaining aspect ratio
+            // Scale so the larger dimension fits within player_size
+            let (tex_w, tex_h) = player_texture_size;
+            let aspect = tex_w / tex_h;
+            let (render_w, render_h) = if aspect >= 1.0 {
+                // Wider than tall: width = player_size, height = player_size / aspect
+                (player_size, player_size / aspect)
+            } else {
+                // Taller than wide: height = player_size, width = player_size * aspect
+                (player_size * aspect, player_size)
+            };
+            let rect = Rect::from_center_size(center, Vec2::new(render_w, render_h));
 
             // Draw player image or fallback to box
             if let Some(tex_id) = player_texture_id {
-                // Apply tint when touched
+                // Apply tint: orange when dragging, otherwise player_tint (changes on bounce)
                 let tint = if is_touched {
-                    Color32::from_rgb(255, 200, 150) // Orange tint
+                    Color32::from_rgb(255, 150, 50) // Orange when dragging
                 } else {
-                    Color32::WHITE // No tint
+                    player_tint // Current color (changes on bounce)
                 };
 
                 painter.image(
@@ -404,7 +443,7 @@ pub extern "C" fn game_render(handle: GameHandle) {
                 let fill_color = if is_touched {
                     Color32::from_rgb(255, 150, 50)
                 } else {
-                    Color32::from_rgb(150, 150, 150)
+                    player_tint
                 };
 
                 painter.rect(
