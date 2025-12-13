@@ -16,6 +16,9 @@ class GameGLRenderer : GLSurfaceView.Renderer {
     @Volatile
     private var pendingTouch: TouchEvent? = null
 
+    @Volatile
+    private var targetFps: Int = 0  // 0 = no limit
+
     data class TouchEvent(val x: Float, val y: Float, val action: Int)
 
     override fun onSurfaceCreated(gl: GL10?, config: EGLConfig?) {
@@ -34,6 +37,8 @@ class GameGLRenderer : GLSurfaceView.Renderer {
     override fun onDrawFrame(gl: GL10?) {
         if (gameHandle == 0L) return
 
+        val frameStart = System.currentTimeMillis()
+
         // Process pending direction
         GameNative.gameSetDirection(gameHandle, pendingDirection)
 
@@ -46,6 +51,20 @@ class GameGLRenderer : GLSurfaceView.Renderer {
         // Update and render
         GameNative.gameUpdate(gameHandle)
         GameNative.gameRender(gameHandle)
+
+        // Frame timing (sleep to cap FPS)
+        if (targetFps > 0) {
+            val targetFrameTime = 1000L / targetFps
+            val elapsed = System.currentTimeMillis() - frameStart
+            val sleepTime = targetFrameTime - elapsed
+            if (sleepTime > 0) {
+                try {
+                    Thread.sleep(sleepTime)
+                } catch (e: InterruptedException) {
+                    Thread.currentThread().interrupt()
+                }
+            }
+        }
     }
 
     fun setDirection(direction: String) {
@@ -62,6 +81,10 @@ class GameGLRenderer : GLSurfaceView.Renderer {
         if (gameHandle != 0L) {
             GameNative.gameSetMode(gameHandle, mode)
         }
+    }
+
+    fun setFps(fps: Int) {
+        targetFps = fps
     }
 
     fun onTouch(x: Float, y: Float, action: Int) {

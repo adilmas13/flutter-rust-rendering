@@ -36,6 +36,8 @@ class _GameScreenState extends State<GameScreen> {
   static const platform = MethodChannel('com.example.flutter_con/game');
   String _lastDirection = 'none';
   bool _isAutoMode = false;
+  bool _fpsLimitEnabled = false;
+  int _targetFps = 30;
 
   Future<void> _sendDirection(String direction) async {
     setState(() {
@@ -61,6 +63,30 @@ class _GameScreenState extends State<GameScreen> {
     }
   }
 
+  Future<void> _setFps(int fps) async {
+    try {
+      await platform.invokeMethod('setFps', {'fps': fps});
+    } on PlatformException catch (e) {
+      debugPrint('Failed to set FPS: ${e.message}');
+    }
+  }
+
+  void _onFpsLimitToggle(bool? enabled) {
+    setState(() {
+      _fpsLimitEnabled = enabled ?? false;
+    });
+    _setFps(_fpsLimitEnabled ? _targetFps : 0);
+  }
+
+  void _onFpsSliderChange(double value) {
+    setState(() {
+      _targetFps = value.round();
+    });
+    if (_fpsLimitEnabled) {
+      _setFps(_targetFps);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -70,31 +96,55 @@ class _GameScreenState extends State<GameScreen> {
       ),
       body: Column(
         children: [
-          // Mode toggle buttons
+          // Mode toggle buttons and FPS dropdown
           Padding(
             padding: const EdgeInsets.all(16),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
+            child: Column(
               children: [
-                ElevatedButton(
-                  onPressed: () => _setMode(false),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: !_isAutoMode ? Colors.blue : Colors.grey,
-                    foregroundColor: Colors.white,
-                  ),
-                  child: const Text('Manual'),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    ElevatedButton(
+                      onPressed: () => _setMode(false),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: !_isAutoMode ? Colors.blue : Colors.grey,
+                        foregroundColor: Colors.white,
+                      ),
+                      child: const Text('Manual'),
+                    ),
+                    const SizedBox(width: 16),
+                    ElevatedButton(
+                      onPressed: () => _setMode(true),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _isAutoMode ? Colors.blue : Colors.grey,
+                        foregroundColor: Colors.white,
+                      ),
+                      child: const Text('Auto'),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 16),
-                ElevatedButton(
-                  onPressed: () => _setMode(true),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: _isAutoMode ? Colors.blue : Colors.grey,
-                    foregroundColor: Colors.white,
-                  ),
-                  child: const Text('Auto'),
-                ),
+                Row(
+                  children: [
+                    Checkbox(
+                      value: _fpsLimitEnabled,
+                      onChanged: _onFpsLimitToggle,
+                    ),
+                    const Text('Limit FPS'),
+                    Expanded(
+                      child: Slider(
+                        value: _targetFps.toDouble(),
+                        min: 1,
+                        max: 60,
+                        divisions: 59,
+                        label: '$_targetFps',
+                        onChanged: _fpsLimitEnabled ? _onFpsSliderChange : null,
+                      ),
+                    ),
+                    Text('$_targetFps fps'),
+                  ],
+                )
               ],
-            ),
+            )
           ),
           // Game view - Android PlatformView with Hybrid Composition
           Expanded(

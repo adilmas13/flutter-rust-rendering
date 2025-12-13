@@ -51,6 +51,14 @@ import UIKit
                 } else {
                     result(FlutterError(code: "INVALID_ARGS", message: "Missing mode", details: nil))
                 }
+            case "setFps":
+                if let args = call.arguments as? [String: Any],
+                   let fps = args["fps"] as? Int32 {
+                    self?.gameViewFactory?.setFps(fps)
+                    result(nil)
+                } else {
+                    result(FlutterError(code: "INVALID_ARGS", message: "Missing fps", details: nil))
+                }
             default:
                 result(FlutterMethodNotImplemented)
             }

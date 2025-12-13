@@ -34,6 +34,11 @@ class MainActivity : FlutterActivity() {
                         gameFactory.setMode(mode)
                         result.success(null)
                     }
+                    "setFps" -> {
+                        val fps = call.argument<Int>("fps") ?: 0
+                        gameFactory.setFps(fps)
+                        result.success(null)
+                    }
                     else -> result.notImplemented()
                 }
             }

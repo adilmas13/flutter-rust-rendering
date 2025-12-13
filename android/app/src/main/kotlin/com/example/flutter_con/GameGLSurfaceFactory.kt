@@ -25,4 +25,8 @@ class GameGLSurfaceFactory(
     fun setMode(mode: Int) {
         currentView?.setMode(mode)
     }
+
+    fun setFps(fps: Int) {
+        currentView?.setFps(fps)
+    }
 }

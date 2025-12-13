@@ -31,6 +31,10 @@ class GamePlatformViewFactory: NSObject, FlutterPlatformViewFactory {
     func setMode(_ mode: Int32) {
         lastCreatedView?.setMode(mode)
     }
+
+    func setFps(_ fps: Int32) {
+        lastCreatedView?.setFps(fps)
+    }
 }
 
 class GamePlatformView: NSObject, FlutterPlatformView {
@@ -54,5 +58,9 @@ class GamePlatformView: NSObject, FlutterPlatformView {
 
     func setMode(_ mode: Int32) {
         gameView.setMode(mode)
+    }
+
+    func setFps(_ fps: Int32) {
+        gameView.setFps(fps)
     }
 }

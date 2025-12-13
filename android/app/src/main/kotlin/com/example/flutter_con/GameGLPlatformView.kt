@@ -39,6 +39,10 @@ class GameGLPlatformView(
             renderer.setMode(mode)
         }
     }
+
+    fun setFps(fps: Int) {
+        renderer.setFps(fps)
+    }
 }
 
 @SuppressLint("ViewConstructor")

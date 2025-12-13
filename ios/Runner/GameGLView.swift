@@ -79,6 +79,14 @@ class GameGLView: GLKView {
         game_set_mode(handle, mode)
     }
 
+    func setFps(_ fps: Int32) {
+        if fps <= 0 {
+            displayLink?.preferredFramesPerSecond = 0  // Device max
+        } else {
+            displayLink?.preferredFramesPerSecond = Int(fps)
+        }
+    }
+
     // MARK: - Touch Handling
 
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
