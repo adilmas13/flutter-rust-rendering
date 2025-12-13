@@ -8,13 +8,19 @@ name = "game_engine"
 crate-type = ["cdylib", "staticlib"]
 
 [dependencies]
-# OpenGL bindings
-glow = "0.14"
+# notan framework
+notan = "0.11"
+notan_app = "0.11"
+notan_core = "0.11"
+notan_graphics = "0.11"
+notan_egui = "0.11"
+notan_glow = "0.11"
 
-# egui core (no winit dependency)
+# egui core (used through notan integration)
 egui = { version = "0.29", default-features = false }
-
-# egui OpenGL renderer
+# OpenGL bindings (for rendering)
+glow = "0.14"
+# egui OpenGL renderer (for rendering egui output)
 egui_glow = { version = "0.29", default-features = false }
 
 # Logging
@@ -27,10 +33,14 @@ image = { version = "0.25", default-features = false, features = ["png"] }
 [target.'cfg(target_os = "android")'.dependencies]
 android_logger = "0.14"
 jni = { version = "0.21", default-features = false }
+# Provide stub android_main to satisfy android-activity linker requirement
+# We use custom backend, so this won't actually be called
+android-activity = { version = "0.4", features = ["native-activity"] }
 
 # iOS-specific dependencies
 [target.'cfg(target_os = "ios")'.dependencies]
 oslog = "0.2"
+core-foundation = "0.9"
 
 [profile.release]
 lto = true
