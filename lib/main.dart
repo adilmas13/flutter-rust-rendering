@@ -87,6 +87,77 @@ class _GameScreenState extends State<GameScreen> {
     }
   }
 
+  Widget _buildModeButtons() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        ElevatedButton(
+          onPressed: () => _setMode(false),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: !_isAutoMode ? Colors.blue : Colors.grey,
+            foregroundColor: Colors.white,
+          ),
+          child: const Text('Manual'),
+        ),
+        const SizedBox(width: 16),
+        ElevatedButton(
+          onPressed: () => _setMode(true),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: _isAutoMode ? Colors.blue : Colors.grey,
+            foregroundColor: Colors.white,
+          ),
+          child: const Text('Auto'),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFpsControl() {
+    return Row(
+      children: [
+        Checkbox(
+          value: _fpsLimitEnabled,
+          onChanged: _onFpsLimitToggle,
+        ),
+        const Text('Limit FPS'),
+        Expanded(
+          child: Slider(
+            value: _targetFps.toDouble(),
+            min: 1,
+            max: 60,
+            divisions: 59,
+            label: '$_targetFps',
+            onChanged: _fpsLimitEnabled ? _onFpsSliderChange : null,
+          ),
+        ),
+        Text('$_targetFps fps'),
+      ],
+    );
+  }
+
+  Widget _buildGameView() {
+    return Expanded(
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 16),
+        clipBehavior: Clip.hardEdge,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: Colors.grey),
+        ),
+        child: const GameGLView(),
+      ),
+    );
+  }
+
+  Widget _buildDirectionIndicator() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Text(
+        _isAutoMode ? 'Mode: Auto (bouncing)' : 'Last direction: $_lastDirection',
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -96,76 +167,17 @@ class _GameScreenState extends State<GameScreen> {
       ),
       body: Column(
         children: [
-          // Mode toggle buttons and FPS dropdown
           Padding(
             padding: const EdgeInsets.all(16),
             child: Column(
               children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    ElevatedButton(
-                      onPressed: () => _setMode(false),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: !_isAutoMode ? Colors.blue : Colors.grey,
-                        foregroundColor: Colors.white,
-                      ),
-                      child: const Text('Manual'),
-                    ),
-                    const SizedBox(width: 16),
-                    ElevatedButton(
-                      onPressed: () => _setMode(true),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: _isAutoMode ? Colors.blue : Colors.grey,
-                        foregroundColor: Colors.white,
-                      ),
-                      child: const Text('Auto'),
-                    ),
-                  ],
-                ),
-                Row(
-                  children: [
-                    Checkbox(
-                      value: _fpsLimitEnabled,
-                      onChanged: _onFpsLimitToggle,
-                    ),
-                    const Text('Limit FPS'),
-                    Expanded(
-                      child: Slider(
-                        value: _targetFps.toDouble(),
-                        min: 1,
-                        max: 60,
-                        divisions: 59,
-                        label: '$_targetFps',
-                        onChanged: _fpsLimitEnabled ? _onFpsSliderChange : null,
-                      ),
-                    ),
-                    Text('$_targetFps fps'),
-                  ],
-                )
+                _buildModeButtons(),
+                _buildFpsControl(),
               ],
-            )
-          ),
-          // Game view - Android PlatformView with Hybrid Composition
-          Expanded(
-            child: Container(
-              margin: const EdgeInsets.symmetric(horizontal: 16),
-              clipBehavior: Clip.hardEdge,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.grey),
-              ),
-              child: const GameGLView(),
             ),
           ),
-          // Direction indicator
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: Text(
-              _isAutoMode ? 'Mode: Auto (bouncing)' : 'Last direction: $_lastDirection',
-            ),
-          ),
-          // Direction pad (disabled in auto mode)
+          _buildGameView(),
+          _buildDirectionIndicator(),
           Padding(
             padding: const EdgeInsets.all(24),
             child: IgnorePointer(
