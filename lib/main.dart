@@ -163,7 +163,7 @@ class _GameScreenState extends State<GameScreen> {
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        title: const Text('Flutter Rust Game'),
+        title: const Text('Flutter Rust'),
       ),
       body: Column(
         children: [

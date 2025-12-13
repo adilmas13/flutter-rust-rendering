@@ -8,19 +8,18 @@ name = "game_engine"
 crate-type = ["cdylib", "staticlib"]
 
 [dependencies]
-# OpenGL bindings
-glow = "0.14"
+# Notan framework - main crate provides init_with_backend
+notan = { git = "https://github.com/invideoio/notan.git", rev = "b065e15", default-features = false, features = ["draw", "shaderc"] }
+notan_core = { git = "https://github.com/invideoio/notan.git", rev = "b065e15" }
+notan_app = { git = "https://github.com/invideoio/notan.git", rev = "b065e15" }
+notan_glow = { git = "https://github.com/invideoio/notan.git", rev = "b065e15" }
+notan_graphics = { git = "https://github.com/invideoio/notan.git", rev = "b065e15" }
+notan_macro = { git = "https://github.com/invideoio/notan.git", rev = "b065e15", features = ["shaderc"] }
+notan_draw = { git = "https://github.com/invideoio/notan.git", rev = "b065e15" }
 
-# egui core (no winit dependency)
-egui = { version = "0.29", default-features = false }
-
-# egui OpenGL renderer
-egui_glow = { version = "0.29", default-features = false }
-
-# Logging
+# Utilities
 log = "0.4"
-
-# Image loading for textures
+once_cell = "1.13"
 image = { version = "0.25", default-features = false, features = ["png"] }
 
 # Android-specific dependencies
@@ -31,6 +30,7 @@ jni = { version = "0.21", default-features = false }
 # iOS-specific dependencies
 [target.'cfg(target_os = "ios")'.dependencies]
 oslog = "0.2"
+core-foundation = "0.9.3"
 
 [profile.release]
 lto = true
