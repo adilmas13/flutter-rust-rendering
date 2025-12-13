@@ -1,30 +1,52 @@
-//! Game state module
+//! Game state module with command queue architecture
+//!
+//! FFI calls push commands to a queue. The update loop processes them.
+//! This eliminates dual-state sync issues.
 
 mod player;
 
 use notan_app::{App, AppState, Graphics};
 use notan_draw::CreateDraw;
 use notan_graphics::color::Color;
-use once_cell::sync::OnceCell;
+use once_cell::sync::Lazy;
 use std::sync::Mutex;
 
 pub use player::{Direction, Mode, Player};
 
-/// Global game state access for FFI
-static GAME: OnceCell<Mutex<GameState>> = OnceCell::new();
+// ============================================================================
+// Command Queue - FFI pushes commands, update() processes them
+// ============================================================================
 
-/// Get mutable access to game state from FFI
-pub fn with_game<F, R>(f: F) -> Option<R>
-where
-    F: FnOnce(&mut GameState) -> R,
-{
-    GAME.get().and_then(|m| m.lock().ok().map(|mut g| f(&mut g)))
+/// Commands that can be sent from FFI to the game
+#[derive(Debug, Clone)]
+pub enum GameCommand {
+    SetDirection(i32),
+    SetMode(i32),
+    Touch { x: f32, y: f32, action: i32 },
+    Resize { width: u32, height: u32 },
 }
 
-/// Initialize the global game state (called once from game_init)
-pub fn init_global(state: GameState) {
-    let _ = GAME.set(Mutex::new(state));
+/// Global command queue - thread-safe
+static COMMANDS: Lazy<Mutex<Vec<GameCommand>>> = Lazy::new(|| Mutex::new(Vec::new()));
+
+/// Push a command to the queue (called from FFI)
+pub fn push_command(cmd: GameCommand) {
+    if let Ok(mut queue) = COMMANDS.lock() {
+        queue.push(cmd);
+    }
 }
+
+/// Drain all pending commands (called from update)
+fn drain_commands() -> Vec<GameCommand> {
+    COMMANDS
+        .lock()
+        .map(|mut q| q.drain(..).collect())
+        .unwrap_or_default()
+}
+
+// ============================================================================
+// Game State
+// ============================================================================
 
 /// Game state - implements AppState marker trait
 pub struct GameState {
@@ -33,7 +55,6 @@ pub struct GameState {
     height: f32,
 }
 
-// Implement the AppState marker trait for GameState
 impl AppState for GameState {}
 
 impl GameState {
@@ -48,22 +69,23 @@ impl GameState {
         }
     }
 
-    pub fn set_direction(&mut self, direction: i32) {
-        self.player.direction = Direction::from(direction);
-    }
-
-    pub fn set_mode(&mut self, mode: i32) {
-        self.player.set_mode(Mode::from(mode));
-    }
-
-    pub fn handle_touch(&mut self, x: f32, y: f32, action: i32) {
-        self.player
-            .handle_touch(x, y, action, (self.width, self.height));
-    }
-
-    pub fn resize(&mut self, width: u32, height: u32) {
-        self.width = width as f32;
-        self.height = height as f32;
+    /// Process a single command
+    fn process_command(&mut self, cmd: GameCommand) {
+        match cmd {
+            GameCommand::SetDirection(dir) => {
+                self.player.direction = Direction::from(dir);
+            }
+            GameCommand::SetMode(mode) => {
+                self.player.set_mode(Mode::from(mode));
+            }
+            GameCommand::Touch { x, y, action } => {
+                self.player.handle_touch(x, y, action, (self.width, self.height));
+            }
+            GameCommand::Resize { width, height } => {
+                self.width = width as f32;
+                self.height = height as f32;
+            }
+        }
     }
 
     pub fn player_x(&self) -> f32 {
@@ -75,9 +97,13 @@ impl GameState {
     }
 }
 
+// ============================================================================
+// Notan Callbacks
+// ============================================================================
+
 /// notan update callback
 pub fn update(app: &mut App, state: &mut GameState) {
-    // Get current window size (handles resize events)
+    // Get current window size (handles resize events from notan)
     let (w, h) = app.window().size();
     if w > 0 && h > 0 && (state.width != w as f32 || state.height != h as f32) {
         state.width = w as f32;
@@ -89,33 +115,14 @@ pub fn update(app: &mut App, state: &mut GameState) {
         }
     }
 
-    // Sync input state FROM global GAME TO local state
-    // (FFI calls update GAME, but we render using state)
-    with_game(|g| {
-        state.player.direction = g.player.direction;
-        // Sync mode and velocity (velocity is set when switching to Auto mode)
-        if state.player.mode != g.player.mode {
-            state.player.mode = g.player.mode;
-            state.player.velocity = g.player.velocity;
-        }
-        // Sync touch drag position only when GAME has a valid (non-zero) position
-        // This ensures initial centering in state isn't overwritten by GAME's 0,0
-        if g.player.x > 0.0 && g.player.y > 0.0 {
-            state.player.x = g.player.x;
-            state.player.y = g.player.y;
-        }
-    });
+    // Process all pending commands from FFI
+    for cmd in drain_commands() {
+        state.process_command(cmd);
+    }
 
+    // Update game logic
     let delta = app.timer.delta_f32().min(0.1);
     state.player.update(delta, (state.width, state.height));
-
-    // Sync position back to global for FFI queries
-    with_game(|g| {
-        g.player.x = state.player.x;
-        g.player.y = state.player.y;
-        g.width = state.width;
-        g.height = state.height;
-    });
 }
 
 /// notan draw callback

@@ -1,10 +1,15 @@
 //! Game engine library with notan backend
+//!
+//! Uses command queue architecture:
+//! - FFI calls push commands to a queue
+//! - update() processes the queue each frame
+//! - Single source of truth for game state
 
 mod backend;
 mod game;
 
 use backend::MobileBackend;
-use game::GameState;
+use game::{GameCommand, GameState};
 use notan::prelude::*;
 use notan_draw::DrawConfig;
 use std::panic;
@@ -65,10 +70,7 @@ pub extern "C" fn game_init(width: u32, height: u32) -> *mut core::ffi::c_void {
 
         match notan::init_with_backend(
             move |gfx: &mut Graphics| {
-                let state = GameState::new(gfx, width, height);
-                // Store a copy in global for FFI access
-                game::init_global(GameState::new(gfx, width, height));
-                state
+                GameState::new(gfx, width, height)
             },
             backend,
         )
@@ -95,7 +97,6 @@ pub extern "C" fn game_init(width: u32, height: u32) -> *mut core::ffi::c_void {
 #[no_mangle]
 pub extern "C" fn game_render(_handle: *mut core::ffi::c_void) {
     ffi_safe!((), {
-        log::info!("game_render here");
         backend::send_render();
     })
 }
@@ -111,8 +112,8 @@ pub extern "C" fn game_update(_handle: *mut core::ffi::c_void) {
 pub extern "C" fn game_resize(_handle: *mut core::ffi::c_void, width: u32, height: u32) {
     ffi_safe!((), {
         backend::send_resize(width, height);
-        // Also update game state directly
-        game::with_game(|g| g.resize(width, height));
+        // Also queue resize command for game state
+        game::push_command(GameCommand::Resize { width, height });
     })
 }
 
@@ -121,8 +122,8 @@ pub extern "C" fn game_resize(_handle: *mut core::ffi::c_void, width: u32, heigh
 pub extern "C" fn game_touch(_handle: *mut core::ffi::c_void, x: f32, y: f32, action: i32) {
     ffi_safe!((), {
         backend::send_touch(x, y, action);
-        // Also update game state directly for immediate response
-        game::with_game(|g| g.handle_touch(x, y, action));
+        // Queue touch command for game state
+        game::push_command(GameCommand::Touch { x, y, action });
     })
 }
 
@@ -130,7 +131,7 @@ pub extern "C" fn game_touch(_handle: *mut core::ffi::c_void, x: f32, y: f32, ac
 #[no_mangle]
 pub extern "C" fn game_set_direction(_handle: *mut core::ffi::c_void, direction: i32) {
     ffi_safe!((), {
-        game::with_game(|g| g.set_direction(direction));
+        game::push_command(GameCommand::SetDirection(direction));
     })
 }
 
@@ -138,24 +139,23 @@ pub extern "C" fn game_set_direction(_handle: *mut core::ffi::c_void, direction:
 #[no_mangle]
 pub extern "C" fn game_set_mode(_handle: *mut core::ffi::c_void, mode: i32) {
     ffi_safe!((), {
-        game::with_game(|g| g.set_mode(mode));
+        game::push_command(GameCommand::SetMode(mode));
     })
 }
 
 /// Get player X position (for debugging/verification)
+/// Note: With command queue, this returns 0 as we don't have direct state access
 #[no_mangle]
 pub extern "C" fn game_get_player_x(_handle: *mut core::ffi::c_void) -> f32 {
-    ffi_safe!(0.0, {
-        game::with_game(|g| g.player_x()).unwrap_or(0.0)
-    })
+    // Can't easily access state with command queue architecture
+    // Would need a separate query mechanism if needed
+    0.0
 }
 
 /// Get player Y position (for debugging/verification)
 #[no_mangle]
 pub extern "C" fn game_get_player_y(_handle: *mut core::ffi::c_void) -> f32 {
-    ffi_safe!(0.0, {
-        game::with_game(|g| g.player_y()).unwrap_or(0.0)
-    })
+    0.0
 }
 
 /// Cleanup the game engine
