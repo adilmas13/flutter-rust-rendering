@@ -1,5 +1,9 @@
 # Flutter Rust Game Engine Demo
 
+> **Presentation**: This repository contains the source code for the presentation **"BUILDING A CROSS‑PLATFORM NATIVE RENDERING ENGINE IN RUST FOR FLUTTER"** presented at **Flutter Con India 2025**.
+>
+> 📊 [View Presentation Slides](https://docs.google.com/presentation/d/1Dd35OlN2G9vk5JDsuf4MVLU_YNhSkXjGuGCe3JSJmsw/edit?usp=sharing)
+
 A cross-platform demo app showcasing Flutter and Rust interoperability for game rendering. The Rust game engine handles OpenGL ES rendering via egui/egui_glow, while Flutter provides the UI layer.
 
 ## Features
